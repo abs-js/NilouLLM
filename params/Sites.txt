@@ -1,0 +1,8 @@
+HTML é uma linguagem de marcação utilizada na construção de páginas na Web.
+Documentos HTML podem ser interpretados por navegadores.
+
+Todo documento HTML possui marcadores (Tags), palavras entre parênteses angulares (chevron) (< e >); esses marcadores são os comandos de formatação da linguagem.
+Um elemento HTML é formado por um nome de marcador (tag), atributos, valores e filhos (que podem ser outros elementos ou texto).
+Os atributos das tags HTML modificam os resultados padrões dos elementos e os valores caracterizam essa mudança.
+
+CSS é um mecanismo para adicionar estilos (cores, fontes, espaçamento, etc.) a uma página web, aplicado diretamente nas tags HTML ou ficar contido dentro das tags <style>.
