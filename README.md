@@ -1,10 +1,10 @@
 # Nilou 0.0.0
 
-Modelo de linguagem básico implementado **do absoluto zero** em JavaScript puro (sem bibliotecas de redes neurais).
+Basic language model built **from absolute zero** in pure JavaScript (no neural network libraries).
 
-**Nome do agente:** Nilou  
-**Versão:** 0.0.0  
-**Repositório:** [abs-js/NilouLLM](https://github.com/abs-js/NilouLLM)
+**Agent name:** Nilou  
+**Version:** 0.0.0  
+**Repository:** [abs-js/NilouLLM](https://github.com/abs-js/NilouLLM)
 
 ## API
 
@@ -13,53 +13,55 @@ Modelo de linguagem básico implementado **do absoluto zero** em JavaScript puro
 **Request JSON:**
 ```json
 {
-  "q": "sua pergunta aqui",
-  "m": "Nilou 0.0.0"
+  "q": "your question here",
+  "m": "Nilou 0.0.0",
+  "l": "en_US"
 }
 ```
 
 **Response JSON:**
 ```json
 {
-  "r": "resposta do modelo",
+  "r": "model response",
   "tokens": 42,
   "m": "Nilou 0.0.0"
 }
 ```
 
-- `q`: pergunta / entrada
-- `m`: modelo (apenas `Nilou 0.0.0` por enquanto; padrão)
-- `r`: resposta
-- `tokens`: quantidade aproximada de tokens usados (entrada + saída)
+- `q`: question / input
+- `m`: model (only `Nilou 0.0.0` for now; default)
+- `l`: language — `en_US` (default) or `pt_BR`
+- `r`: response
+- `tokens`: approximate number of tokens used (input + output)
 
-Modo anti-alucinação e demais lógicas ficam **dentro do servidor** (o modelo só responde com base nos arquivos em `params/`).
+Anti-hallucination mode and other logic stay **inside the server** (the model only answers based on files in `params/`).
 
-## Como rodar
+## How to run
 
 ```bash
 npm install
 npm start
 ```
 
-Depois:
+Then:
 
 ```bash
 curl -X POST http://localhost:3000/ \
   -H "Content-Type: application/json" \
-  -d '{"q":"o que é python?"}'
+  -d '{"q":"what is python?","l":"en_US"}'
 ```
 
-## Persistência
+## Persistence
 
-Interações são salvas automaticamente no Supabase via a API `db()`  
-(tabela `nilou_logs`, chaves começando com `Nilou000_`).
+Interactions are automatically saved to Supabase via the `db()` API  
+(table `nilou_logs`, keys starting with `Nilou000_`).
 
-## Estrutura
+## Structure
 
-- `server.js` — servidor HTTP + API
-- `src/model.js` — modelo Nilou (n-gram + ferramentas + modos)
-- `src/db.js` — cliente do banco
-- `params/` — base de conhecimento por tópico
+- `server.js` — HTTP server + API
+- `src/model.js` — Nilou model (n-gram + tools + modes)
+- `src/db.js` — database client
+- `params/` — knowledge base by topic
 
-**Nota:** Projeto educacional. O modelo prioriza não alucinar.  
-Licença: MIT
+**Note:** Educational project. The model prioritizes not hallucinating.  
+License: MIT
