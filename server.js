@@ -18,7 +18,7 @@ import { db } from './src/db.js';
 export const KEY = process.argv[0];
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = process.env.PORT || 3000;
+const PORT = process.argv[1] || 3000;
 const MODEL_NAME = 'Nilou 0.0.0';
 
 const nilou = new BasicLanguageModel({
