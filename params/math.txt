@@ -1,3 +1,6 @@
+Matemática é uma área do conhecimento que inclui os tópicos dos números, fórmulas e estruturas relacionadas, formas e os espaços em que estão contidos, e quantidades e suas mudanças. Esses tópicos são representados na matemática moderna com as principais subdisciplinas da teoria dos números,[1] álgebra,[2] geometria[1] e análise,[3] respectivamente.
+A matemática é essencial nas ciências naturais, engenharia, medicina, finanças, ciências da computação e ciências sociais. 
+
 Adição: Some dois números
 subtração: Retire o segundo número do primeiro
 Multiplicação: Some o mesmo número várias vezes
