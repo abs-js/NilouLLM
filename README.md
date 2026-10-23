@@ -13,55 +13,63 @@ Basic language model built **from absolute zero** in pure JavaScript (no neural 
 **Request JSON:**
 ```json
 {
-  "q": "your question here",
-  "m": "Nilou 0.0.0",
-  "l": "en_US"
+  "r": "your text or question",
+  "t": "Response",
+  "l": "en_US",
+  "m": "Nilou 0.0.0"
 }
 ```
 
 **Response JSON:**
 ```json
 {
-  "r": "model response",
+  "r": "model output",
   "tokens": 42,
-  "m": "Nilou 0.0.0"
+  "m": "Nilou 0.0.0",
+  "t": "Response",
+  "l": "en_US"
 }
 ```
 
-- `q`: question / input
-- `m`: model (only `Nilou 0.0.0` for now; default)
-- `l`: language — `en_US` (default) or `pt_BR`
-- `r`: response
-- `tokens`: approximate number of tokens used (input + output)
+| Field | Description |
+|-------|-------------|
+| `r`  | Input text (was previously called `q`) |
+| `t`  | Command type: `Response` (default) or `NextWord` |
+| `l`  | Language: `en_US` (default) or `pt_BR` |
+| `m`  | Model name (only `Nilou 0.0.0` for now) |
+| `tokens` | Approximate tokens used |
 
-Anti-hallucination mode and other logic stay **inside the server** (the model only answers based on files in `params/`).
+- `t: "Response"` → full answer
+- `t: "NextWord"` → predicts the next word + confidence
 
-## How to run
+Anti-hallucination logic stays inside the server.
+
+## Dashboard
+
+Open the root URL to see the real-time dashboard:
+- Requests / minute
+- Tokens / minute & / second
+- Daily requests
+- Charts + recent requests table
+
+## Run locally
 
 ```bash
 npm install
 npm start
 ```
 
-Then:
+Then open http://localhost:3000
 
-```bash
-curl -X POST http://localhost:3000/ \
-  -H "Content-Type: application/json" \
-  -d '{"q":"what is python?","l":"en_US"}'
-```
+## Render
+
+This project is ready for Render:
+- Uses `process.env.PORT`
+- Start command: `npm start`
+- No extra build step needed
 
 ## Persistence
 
-Interactions are automatically saved to Supabase via the `db()` API  
-(table `nilou_logs`, keys starting with `Nilou000_`).
+Interactions are saved to Supabase (table `nilou_logs`, keys starting with `Nilou000_`).
 
-## Structure
-
-- `server.js` — HTTP server + API
-- `src/model.js` — Nilou model (n-gram + tools + modes)
-- `src/db.js` — database client
-- `params/` — knowledge base by topic
-
-**Note:** Educational project. The model prioritizes not hallucinating.  
-License: MIT
+**License:** MIT
