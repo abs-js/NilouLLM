@@ -51,12 +51,15 @@
       <div class="card"><canvas id="chart" height="80"></canvas></div>
     </div>
     <div id="sec-keys" class="hidden">
-      <h2>Chaves</h2>
-      <button class="action" onclick="loadKeys()">Atualizar</button>
+      <h2>Chaves e Usuários</h2>
+      <button class="action" onclick="loadKeys()">Atualizar chaves</button>
+      <button class="action" onclick="loadUsers()">Carregar usuários</button>
       <div id="keysList" class="card"></div>
+      <div id="usersList" class="card"></div>
       <div id="keyMonitor" class="card hidden">
         <h4>Monitorando: <span id="monName"></span></h4>
         <p>Chave: <span class="masked" id="monKey"></span></p>
+        <button class="action" style="background:#7f1d1d;" onclick="deleteCurrentKey()">Deletar esta chave</button>
       </div>
     </div>
     <div id="sec-ai" class="hidden">
@@ -77,6 +80,19 @@
   <script>
     let adminSession = sessionStorage.getItem('nilouAdmin') === '1';
     let chart, rpmData = [], labels = [];
+    let _currentKey = null;
+
+    function toast(msg) {
+      let el = document.getElementById('toast');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'toast';
+        el.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#111;color:white;padding:0.8rem 1.2rem;border-radius:8px;z-index:100;';
+        document.body.appendChild(el);
+      }
+      el.textContent = msg;
+      setTimeout(() => el.textContent = '', 3000);
+    }
 
     function maskKey(k) { return k ? k.slice(0,10) + '*******' + k.slice(-4) : ''; }
 
@@ -89,7 +105,7 @@
       const pass = document.getElementById('admPass').value;
       const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password: pass }) });
       const data = await res.json();
-      if (data.error || !data.user?.isAdmin) return alert(data.error || 'Não é admin');
+      if (data.error || !data.user?.isAdmin) return toast(data.error || 'Não é admin');
       sessionStorage.setItem('nilouAdmin', '1');
       document.getElementById('loginOverlay').style.display = 'none';
       initChart();
@@ -124,23 +140,51 @@
       const res = await fetch('/api/admin/keys');
       const data = await res.json();
       const list = document.getElementById('keysList');
-      list.innerHTML = (data || []).map((item, i) => {
+      list.innerHTML = '<h4>Chaves</h4>' + ((data || []).map((item, i) => {
         const v = item.value || {};
         return `<div style="cursor:pointer;padding:0.4rem;border-bottom:1px solid #2d3348;" onclick="monitor(${i})"><b>${v.name || 'sem nome'}</b> — <span class="masked">${maskKey(v.key)}</span> (${v.owner || ''})</div>`;
-      }).join('') || '<p>Nenhuma chave.</p>';
+      }).join('') || '<p>Nenhuma chave.</p>');
       window._keys = data || [];
+    }
+
+    async function loadUsers() {
+      const res = await fetch('/api/admin/users');
+      const data = await res.json();
+      const list = document.getElementById('usersList');
+      list.innerHTML = '<h4>Usuários</h4>' + ((data || []).map(item => {
+        const v = item.value || {};
+        return `<div style="padding:0.4rem;border-bottom:1px solid #2d3348;"><b>${v.nickname || ''}</b> (${v.email || ''}) <button style="margin-left:1rem;background:#7f1d1d;color:white;border:none;padding:0.2rem 0.5rem;cursor:pointer;" onclick="delUser('${v.email}')">Deletar</button></div>`;
+      }).join('') || '<p>Nenhum usuário.</p>');
     }
 
     function monitor(i) {
       const v = window._keys[i]?.value || {};
+      _currentKey = v.key;
       document.getElementById('keyMonitor').classList.remove('hidden');
       document.getElementById('monName').textContent = v.name || '';
       document.getElementById('monKey').textContent = maskKey(v.key);
     }
 
+    async function deleteCurrentKey() {
+      if (!_currentKey) return toast('Nenhuma chave selecionada');
+      const res = await fetch('/api/admin/delete-key', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ apiKey: _currentKey }) });
+      const data = await res.json();
+      if (data.error) return toast(data.error);
+      toast('Chave deletada');
+      loadKeys();
+    }
+
+    async function delUser(email) {
+      const res = await fetch('/api/admin/delete-user', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email }) });
+      const data = await res.json();
+      if (data.error) return toast(data.error);
+      toast('Usuário deletado');
+      loadUsers();
+    }
+
     function askAI() {
       const q = document.getElementById('aiQ').value;
-      document.getElementById('aiOut').textContent = 'Admin: ' + q + '\n(chamada direta simulada)';
+      document.getElementById('aiOut').textContent = 'Admin: ' + q;
     }
 
     function runShell() {
