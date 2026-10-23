@@ -1,10 +1,9 @@
 /**
- * Nilou 0.0.0 - Server + Dashboard
- * Adapted for Render
- *
- * POST /          → API
- * GET  /          → Dashboard
- * GET  /stats     → Real-time stats JSON
+ * Nilou 0.0.0 - Server + Dashboard + Auto-training
+ * 
+ * Uso:
+ *   node server.js "seu_token_supabase"
+ *   ou defina SUPABASE_KEY no ambiente
  */
 
 import http from 'http';
@@ -13,11 +12,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { BasicLanguageModel } from './src/model.js';
 import { log } from './src/utils.js';
-import { db } from './src/db.js';
+import { initDb, db } from './src/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = process.env.PORT || 3000;
 const MODEL_NAME = 'Nilou 0.0.0';
+
+const token = process.argv[2] || process.env.SUPABASE_KEY;
+initDb(token);
 
 const nilou = new BasicLanguageModel({
   mode: 'normal',
@@ -33,8 +35,13 @@ const stats = {
   requestsPerMinute: [],
   tokensPerMinute: [],
   recentRequests: [],
-  startTime: Date.now()
+  startTime: Date.now(),
+  lastRequestTime: Date.now(),
+  isTraining: false,
+  trainingCycles: 0
 };
+
+const IDLE_TRAIN_MS = 5 * 60 * 1000;
 
 function resetDailyIfNeeded() {
   const today = new Date().toISOString().slice(0, 10);
@@ -47,14 +54,20 @@ function resetDailyIfNeeded() {
 function recordRequest(input, output, tokens, type) {
   resetDailyIfNeeded();
   const now = Date.now();
+  stats.lastRequestTime = now;
+  stats.isTraining = false;
+
   stats.totalRequests++;
   stats.dailyRequests++;
   stats.totalTokens += tokens;
+
   stats.requestsPerMinute.push(now);
   stats.tokensPerMinute.push({ t: now, tokens });
+
   const oneHourAgo = now - 60 * 60 * 1000;
   stats.requestsPerMinute = stats.requestsPerMinute.filter(t => t > oneHourAgo);
   stats.tokensPerMinute = stats.tokensPerMinute.filter(x => x.t > oneHourAgo);
+
   stats.recentRequests.unshift({
     time: new Date().toISOString(),
     type,
@@ -71,10 +84,11 @@ function getStats() {
   const oneMinAgo = now - 60 * 1000;
   const rpm = stats.requestsPerMinute.filter(t => t > oneMinAgo).length;
   const tpm = stats.tokensPerMinute.filter(x => x.t > oneMinAgo).reduce((s, x) => s + x.tokens, 0);
-  const uptimeSec = Math.floor((now - stats.startTime) / 1000);
+  const idleMs = now - stats.lastRequestTime;
+
   return {
     model: MODEL_NAME,
-    uptime: uptimeSec,
+    uptime: Math.floor((now - stats.startTime) / 1000),
     totalRequests: stats.totalRequests,
     dailyRequests: stats.dailyRequests,
     totalTokens: stats.totalTokens,
@@ -83,7 +97,10 @@ function getStats() {
     tokensPerSecond: Math.round(tpm / 60 * 10) / 10,
     recentRequests: stats.recentRequests.slice(0, 20),
     knowledgeTopics: nilou.knowledge.length,
-    vocabularySize: nilou.vocabulary.size
+    vocabularySize: nilou.vocabulary.size,
+    isTraining: stats.isTraining,
+    trainingCycles: stats.trainingCycles,
+    idleSeconds: Math.floor(idleMs / 1000)
   };
 }
 
@@ -102,6 +119,30 @@ async function saveInteraction(input, output, tokens, type, lang) {
     console.error('DB save error:', err.message);
   }
 }
+
+function startAutoTrainLoop() {
+  setInterval(() => {
+    const idle = Date.now() - stats.lastRequestTime;
+    if (idle >= IDLE_TRAIN_MS && !stats.isTraining) {
+      stats.isTraining = true;
+      stats.trainingCycles++;
+      log(`[Auto-train] Iniciando ciclo #${stats.trainingCycles} (ocioso há ${Math.floor(idle/1000)}s)`);
+      try {
+        nilou.train();
+        log(`[Auto-train] Ciclo #${stats.trainingCycles} concluído`);
+      } catch (e) {
+        log(`[Auto-train] Erro: ${e.message}`);
+      }
+      setTimeout(() => {
+        if (Date.now() - stats.lastRequestTime >= IDLE_TRAIN_MS) {
+          stats.isTraining = false;
+        }
+      }, 30000);
+    }
+  }, 30000);
+}
+
+startAutoTrainLoop();
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -144,7 +185,7 @@ const server = http.createServer(async (req, res) => {
 
     if (!text) {
       res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Field "r" (or "q") is required' }));
+      return res.end(JSON.stringify({ error: 'Field "r" is required' }));
     }
 
     let output = '';
@@ -175,6 +216,7 @@ server.listen(PORT, () => {
   console.log(`\n=== Nilou ${MODEL_NAME} ===`);
   console.log(`Dashboard: http://localhost:${PORT}/`);
   console.log(`API:       POST http://localhost:${PORT}/`);
-  console.log(`Stats:     GET  http://localhost:${PORT}/stats`);
-  log(`Nilou server started on port ${PORT}`);
+  console.log(`Auto-train: ativa após 5 min de inatividade`);
+  if (!token) console.log(`Aviso: nenhum token DB fornecido`);
+  log(`Servidor iniciado na porta ${PORT}`);
 });
