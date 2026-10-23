@@ -6,7 +6,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { BasicLanguageModel } from './src/model.js';
 import { initDb, db } from './src/db.js';
-import { registerUser, verifyUser, login, createApiKey, validateKey, getLimits, ensureAdmin } from './src/auth.js';
+import {
+  registerUser, verifyUser, login, createApiKey,
+  validateKey, getLimits, ensureAdmin, updateKeyPassword
+} from './src/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
@@ -72,6 +75,15 @@ app.post('/api/create-key', async (req, res) => {
   try {
     const result = await createApiKey(req.body.email, req.body.name || 'Minha chave', req.body.model || 'Nilou 0.0.0', req.body.password || '');
     res.json({ ok: true, ...result });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/update-key-password', async (req, res) => {
+  try {
+    const { apiKey, password } = req.body;
+    if (!apiKey) return res.status(400).json({ error: 'apiKey obrigatória' });
+    await updateKeyPassword(apiKey, password || '');
+    res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
