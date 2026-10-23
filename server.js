@@ -1,178 +1,104 @@
 /**
- * Nilou 0.0.0 - Server
- * POST / { m, q, c } → { r, t }
- * POST /clean → limpa logs antigos do Supabase
+ * Nilou Server - Express + Auth + API Keys
  */
-
-import http from 'http';
-import fs from 'fs';
+import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { BasicLanguageModel } from './src/model.js';
-import { log } from './src/utils.js';
 import { initDb, db } from './src/db.js';
+import { registerUser, verifyUser, login, createApiKey, validateKey, getLimits, ensureAdmin } from './src/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = process.env.PORT || 3000;
-const MODEL_NAME = 'Nilou 0.0.0';
-
 const token = process.argv[2] || process.env.SUPABASE_KEY;
 initDb(token);
 
-const nilou = new BasicLanguageModel({ mode: 'normal', n: 2, temperature: 0.5, maxTokens: 100 });
+const nilou = new BasicLanguageModel({ n: 2, temperature: 0.4, maxTokens: 80 });
+const app = express();
+app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-const MAX_TOKENS_PER_REQUEST = 120;
-const MAX_REQUESTS_PER_MINUTE = 30;
+const keyUsage = new Map();
 
-const stats = {
-  totalRequests: 0, totalTokens: 0, dailyRequests: 0,
-  dailyReset: new Date().toISOString().slice(0, 10),
-  requestsPerMinute: [], tokensPerMinute: [], recentRequests: [],
-  startTime: Date.now(), lastRequestTime: Date.now(),
-  isTraining: false, trainingCycles: 0
-};
-
-const IDLE_TRAIN_MS = 5 * 60 * 1000;
-
-function canAcceptRequest() {
+function checkRateLimit(keyData) {
+  const limits = getLimits(keyData);
+  if (limits.unlimited) return true;
   const now = Date.now();
-  return stats.requestsPerMinute.filter(t => t > now - 60000).length < MAX_REQUESTS_PER_MINUTE;
+  const id = keyData.key;
+  if (!keyUsage.has(id)) keyUsage.set(id, { requests: [], tokens: [] });
+  const u = keyUsage.get(id);
+  u.requests = u.requests.filter(t => t > now - 60000);
+  u.tokens = u.tokens.filter(x => x.t > now - 60000);
+  if (u.requests.length >= limits.reqPerMin) return false;
+  const tokensMin = u.tokens.reduce((s, x) => s + x.tokens, 0);
+  if (tokensMin >= limits.tokensPerMin) return false;
+  return true;
 }
 
-function recordRequest(input, output, tokens) {
+function recordKeyUsage(keyData, tokens) {
+  const id = keyData.key;
+  if (!keyUsage.has(id)) keyUsage.set(id, { requests: [], tokens: [] });
+  const u = keyUsage.get(id);
   const now = Date.now();
-  stats.lastRequestTime = now;
-  stats.isTraining = false;
-  stats.totalRequests++;
-  stats.dailyRequests++;
-  stats.totalTokens += tokens;
-  stats.requestsPerMinute.push(now);
-  stats.tokensPerMinute.push({ t: now, tokens });
-  stats.requestsPerMinute = stats.requestsPerMinute.filter(t => t > now - 3600000);
-  stats.recentRequests.unshift({ time: new Date().toISOString(), input: input.slice(0,60), output: output.slice(0,100), tokens });
-  if (stats.recentRequests.length > 40) stats.recentRequests.pop();
+  u.requests.push(now);
+  u.tokens.push({ t: now, tokens });
 }
 
-function getStats() {
-  const now = Date.now();
-  const rpm = stats.requestsPerMinute.filter(t => t > now - 60000).length;
-  const tpm = stats.tokensPerMinute.filter(x => x.t > now - 60000).reduce((s, x) => s + x.tokens, 0);
-  return {
-    model: MODEL_NAME,
-    uptime: Math.floor((now - stats.startTime)/1000),
-    totalRequests: stats.totalRequests,
-    dailyRequests: stats.dailyRequests,
-    totalTokens: stats.totalTokens,
-    requestsPerMinute: rpm,
-    tokensPerMinute: tpm,
-    tokensPerSecond: Math.round(tpm / 60 * 10) / 10,
-    maxRequestsPerMinute: MAX_REQUESTS_PER_MINUTE,
-    maxTokensPerRequest: MAX_TOKENS_PER_REQUEST,
-    recentRequests: stats.recentRequests.slice(0,15),
-    knowledgeTopics: nilou.knowledge.length,
-    isTraining: stats.isTraining,
-    trainingCycles: stats.trainingCycles,
-    idleSeconds: Math.floor((now - stats.lastRequestTime)/1000)
-  };
-}
-
-async function saveInteraction(q, r, tokens) {
+app.post('/api/register', async (req, res) => {
   try {
-    const key = `Nilou000_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-    await db('set', 'nilou_logs', key, { q, r, tokens, m: MODEL_NAME, timestamp: new Date().toISOString() });
-  } catch(e) {}
-}
-
-async function cleanOldLogs(days = 7) {
-  try {
-    const list = await db('list', 'nilou_logs');
-    const items = list?.data || [];
-    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    let deleted = 0;
-    for (const item of items) {
-      const key = item.key || item.id;
-      const ts = item.value?.timestamp ? new Date(item.value.timestamp).getTime() : 0;
-      if (ts && ts < cutoff) {
-        await db('delete', 'nilou_logs', key);
-        deleted++;
-      }
-    }
-    return { deleted, total: items.length };
-  } catch (err) {
-    return { error: err.message };
-  }
-}
-
-setInterval(() => {
-  if (Date.now() - stats.lastRequestTime >= IDLE_TRAIN_MS && !stats.isTraining) {
-    stats.isTraining = true;
-    stats.trainingCycles++;
-    try { nilou.train && nilou.train(); } catch(e) {}
-    setTimeout(() => { stats.isTraining = false; }, 20000);
-  }
-}, 30000);
-
-const server = http.createServer(async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
-
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/index.html')) {
-    const html = path.join(__dirname, 'index.html');
-    if (fs.existsSync(html)) {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      return res.end(fs.readFileSync(html));
-    }
-  }
-
-  if (req.method === 'GET' && req.url === '/stats') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify(getStats()));
-  }
-
-  if (req.method === 'POST' && req.url === '/clean') {
-    const result = await cleanOldLogs(7);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({
-      message: result.error ? 'Erro: ' + result.error : `Removidos ${result.deleted} logs antigos de ${result.total}`,
-      ...result
-    }));
-  }
-
-  if (req.method === 'POST' && req.url === '/') {
-    if (!canAcceptRequest()) {
-      res.writeHead(429, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Too many requests' }));
-    }
-
-    let body = '';
-    for await (const chunk of req) body += chunk;
-    let input;
-    try { input = JSON.parse(body || '{}'); }
-    catch { res.writeHead(400); return res.end(JSON.stringify({ error: 'Invalid JSON' })); }
-
-    const q = (input.q || '').toString().trim();
-    const c = input.c || {};
-    if (!q) { res.writeHead(400); return res.end(JSON.stringify({ error: 'q required' })); }
-
-    const maxTok = Math.min(parseInt(c.maxTokens) || MAX_TOKENS_PER_REQUEST, MAX_TOKENS_PER_REQUEST);
-    const result = nilou.generateUntilEnd(q, maxTok);
-
-    recordRequest(q, result.text, result.tokens);
-    saveInteraction(q, result.text, result.tokens).catch(()=>{});
-
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    return res.end(JSON.stringify({ r: result.text, t: result.tokens }, null, 2));
-  }
-
-  res.writeHead(404);
-  res.end(JSON.stringify({ error: 'Not found' }));
+    const { nickname, email, password, captcha } = req.body;
+    if (!nickname || !email || !password) return res.status(400).json({ error: 'Campos obrigatórios' });
+    if (captcha !== 'nilou') return res.status(400).json({ error: 'Captcha incorreto (digite nilou)' });
+    const result = await registerUser(nickname, email, password);
+    res.json({ ok: true, email: result.email, verifyCode: result.verifyCode });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
-server.listen(PORT, () => {
-  console.log(`Nilou ${MODEL_NAME} on ${PORT}`);
-  console.log(`POST / {m,q,c} → {r,t} | POST /clean`);
-  log('Server started');
+app.post('/api/verify', async (req, res) => {
+  try {
+    await verifyUser(req.body.email, req.body.code);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const user = await login(req.body.email, req.body.password);
+    res.json({ ok: true, user });
+  } catch (e) { res.status(401).json({ error: e.message }); }
+});
+
+app.post('/api/create-key', async (req, res) => {
+  try {
+    const result = await createApiKey(req.body.email, req.body.name || 'Minha chave', req.body.model || 'Nilou 0.0.0', req.body.password || '');
+    res.json({ ok: true, ...result });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/', async (req, res) => {
+  try {
+    const { k, p, q, c } = req.body;
+    if (!k) return res.status(401).json({ error: 'Chave (k) obrigatória' });
+    const keyData = await validateKey(k, p || '');
+    if (!checkRateLimit(keyData)) return res.status(429).json({ error: 'Limite excedido' });
+    const question = (q || '').toString().trim();
+    if (!question) return res.status(400).json({ error: 'q obrigatório' });
+    const maxTok = Math.min(parseInt(c?.maxTokens) || 80, 120);
+    const result = nilou.generateUntilEnd(question, maxTok);
+    recordKeyUsage(keyData, result.tokens);
+    res.json({ r: result.text, t: result.tokens });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.get('/api/admin/keys', async (req, res) => {
+  try {
+    const list = await db('list', 'nilou_keys');
+    res.json(list?.data || []);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.listen(PORT, async () => {
+  await ensureAdmin();
+  console.log(`Nilou rodando na porta ${PORT}`);
+  console.log('Admin: email=adm senha=130116');
 });
