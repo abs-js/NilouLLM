@@ -4,107 +4,176 @@
   <meta charset="UTF-8" />
   <title>Nilou — Cliente</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 520px; margin: 2rem auto; padding: 1rem; }
-    input, button, select, textarea { width: 100%; padding: 0.6rem; margin: 0.4rem 0; box-sizing: border-box; }
-    button { background: #111; color: white; border: none; cursor: pointer; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #f8fafc; }
+    .sidebar { width: 220px; background: #111; color: white; height: 100vh; position: fixed; padding: 1.2rem; box-sizing: border-box; }
+    .sidebar h3 { margin: 0 0 1.5rem; }
+    .sidebar button { display: block; color: #cbd5e1; background: none; border: none; text-align: left; padding: 0.6rem 0; cursor: pointer; font-size: 0.95rem; width: 100%; }
+    .sidebar button:hover { color: white; }
+    .main { margin-left: 220px; padding: 1.5rem; }
+    .card { background: white; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    input, textarea, button.action { width: 100%; padding: 0.6rem; margin: 0.4rem 0; box-sizing: border-box; }
+    button.action { background: #111; color: white; border: none; cursor: pointer; border-radius: 6px; }
     .hidden { display: none; }
-    pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; white-space: pre-wrap; }
+    pre { background: #f1f5f9; padding: 1rem; border-radius: 6px; white-space: pre-wrap; font-size: 0.9rem; }
+    .key-item { cursor: pointer; padding: 0.5rem; border-bottom: 1px solid #e2e8f0; }
+    .masked { font-family: monospace; color: #64748b; }
   </style>
 </head>
 <body>
-  <h2>Nilou</h2>
-  <div id="loginBox">
-    <h3>Login</h3>
-    <input id="loginEmail" placeholder="E-mail" />
-    <input id="loginPass" type="password" placeholder="Senha" />
-    <button onclick="doLogin()">Entrar</button>
-    <p><a href="#" onclick="showRegister()">Criar conta</a></p>
+  <div id="authOverlay" style="position:fixed;inset:0;background:#fff;z-index:10;display:flex;align-items:center;justify-content:center;">
+    <div style="width:360px;">
+      <div id="loginBox">
+        <h2>Nilou</h2>
+        <input id="loginEmail" placeholder="E-mail" />
+        <input id="loginPass" type="password" placeholder="Senha" />
+        <button class="action" onclick="doLogin()">Entrar</button>
+        <p><a href="#" onclick="showRegister()">Criar conta</a></p>
+      </div>
+      <div id="registerBox" class="hidden">
+        <h3>Criar conta</h3>
+        <input id="regNick" placeholder="Nickname" />
+        <input id="regEmail" placeholder="E-mail" />
+        <input id="regPass" type="password" placeholder="Senha" />
+        <p>Captcha: digite <b>nilou</b></p>
+        <input id="captcha" placeholder="Captcha" />
+        <button class="action" onclick="doRegister()">Registrar</button>
+        <p><a href="#" onclick="showLogin()">Voltar</a></p>
+      </div>
+      <div id="verifyBox" class="hidden">
+        <h3>Verificação</h3>
+        <p>Código (copie agora): <b id="showCode"></b></p>
+        <input id="verifyCode" placeholder="xxxx-xxxx" />
+        <button class="action" onclick="doVerify()">Verificar</button>
+      </div>
+    </div>
   </div>
-  <div id="registerBox" class="hidden">
-    <h3>Criar conta</h3>
-    <input id="regNick" placeholder="Nickname" />
-    <input id="regEmail" placeholder="E-mail" />
-    <input id="regPass" type="password" placeholder="Senha" />
-    <p>Captcha: digite <b>nilou</b></p>
-    <input id="captcha" placeholder="Captcha" />
-    <button onclick="doRegister()">Registrar</button>
-    <p><a href="#" onclick="showLogin()">Voltar</a></p>
-  </div>
-  <div id="verifyBox" class="hidden">
-    <h3>Verificação</h3>
-    <p>Código (mostrado uma vez): <b id="showCode"></b></p>
-    <input id="verifyCode" placeholder="xxxx-xxxx" />
-    <button onclick="doVerify()">Verificar</button>
-  </div>
-  <div id="dash" class="hidden">
-    <h3>Olá, <span id="nick"></span></h3>
-    <button onclick="showCreateKey()">Criar chave</button>
-    <div id="keyResult" class="hidden"><p>Sua chave (copie agora):</p><pre id="newKey"></pre></div>
-    <h4>Testar API</h4>
-    <input id="testKey" placeholder="Sua chave" />
-    <input id="testPass" placeholder="Senha da chave (opcional)" />
-    <textarea id="testQ" rows="3" placeholder="Pergunta"></textarea>
-    <button onclick="testApi()">Enviar</button>
-    <pre id="testOut"></pre>
+
+  <div class="sidebar">
+    <h3>Nilou</h3>
+    <button onclick="showSection('dash')">Dashboard</button>
+    <button onclick="showSection('keys')">Chaves</button>
+    <button onclick="showSection('info')">Informações</button>
     <button onclick="logout()">Sair</button>
   </div>
+
+  <div class="main">
+    <div id="section-dash">
+      <h2>Dashboard</h2>
+      <div class="card">
+        <h4>Testar API</h4>
+        <input id="testKey" placeholder="Chave" />
+        <input id="testPass" type="password" placeholder="Senha da chave (opcional)" />
+        <textarea id="testQ" rows="3" placeholder="Pergunta"></textarea>
+        <button class="action" onclick="testApi()">Enviar</button>
+        <pre id="testOut">—</pre>
+      </div>
+    </div>
+    <div id="section-keys" class="hidden">
+      <h2>Minhas chaves</h2>
+      <button class="action" onclick="createKey()">Criar nova chave</button>
+      <div id="keysList" class="card"></div>
+      <div id="keyDetail" class="card hidden">
+        <h4 id="keyDetailName"></h4>
+        <p>Chave: <span class="masked" id="keyDetailMasked"></span></p>
+        <p>Modelo: <span id="keyDetailModel"></span></p>
+      </div>
+    </div>
+    <div id="section-info" class="hidden">
+      <h2>Informações</h2>
+      <div class="card">
+        <p>Usuário: <b id="userNick"></b></p>
+        <p>E-mail: <b id="userEmail"></b></p>
+        <p>Limites normais: 2 req/min · 200 tokens/min · 40 diárias · 600 mensais</p>
+      </div>
+    </div>
+  </div>
+
   <script>
-    let currentEmail = '';
-    function showLogin() {
-      document.getElementById('loginBox').classList.remove('hidden');
-      document.getElementById('registerBox').classList.add('hidden');
-      document.getElementById('verifyBox').classList.add('hidden');
-      document.getElementById('dash').classList.add('hidden');
+    let currentUser = JSON.parse(localStorage.getItem('nilouUser') || 'null');
+    let myKeys = JSON.parse(localStorage.getItem('nilouKeys') || '[]');
+
+    function maskKey(k) { return k ? k.slice(0,10) + '*******' + k.slice(-4) : ''; }
+
+    function showSection(name) {
+      ['dash','keys','info'].forEach(s => document.getElementById('section-' + s).classList.toggle('hidden', s !== name));
+      if (name === 'keys') renderKeys();
+      if (name === 'info') {
+        document.getElementById('userNick').textContent = currentUser?.nickname || '';
+        document.getElementById('userEmail').textContent = currentUser?.email || '';
+      }
     }
-    function showRegister() {
-      document.getElementById('loginBox').classList.add('hidden');
-      document.getElementById('registerBox').classList.remove('hidden');
+
+    function renderKeys() {
+      const list = document.getElementById('keysList');
+      if (!myKeys.length) { list.innerHTML = '<p>Nenhuma chave ainda.</p>'; return; }
+      list.innerHTML = myKeys.map((k, i) => `<div class="key-item" onclick="showKeyDetail(${i})"><b>${k.name}</b> — <span class="masked">${maskKey(k.key)}</span></div>`).join('');
     }
-    async function doRegister() {
-      const body = { nickname: document.getElementById('regNick').value, email: document.getElementById('regEmail').value, password: document.getElementById('regPass').value, captcha: document.getElementById('captcha').value };
-      const res = await fetch('/api/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-      const data = await res.json();
-      if (data.error) return alert(data.error);
-      currentEmail = data.email;
-      document.getElementById('showCode').textContent = data.verifyCode;
-      document.getElementById('registerBox').classList.add('hidden');
-      document.getElementById('verifyBox').classList.remove('hidden');
+
+    function showKeyDetail(i) {
+      const k = myKeys[i];
+      document.getElementById('keyDetail').classList.remove('hidden');
+      document.getElementById('keyDetailName').textContent = k.name;
+      document.getElementById('keyDetailMasked').textContent = maskKey(k.key);
+      document.getElementById('keyDetailModel').textContent = k.model || 'Nilou 0.0.0';
     }
-    async function doVerify() {
-      const code = document.getElementById('verifyCode').value;
-      const res = await fetch('/api/verify', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email: currentEmail, code }) });
-      const data = await res.json();
-      if (data.error) return alert(data.error);
-      alert('Verificado! Faça login.');
-      showLogin();
-    }
-    async function doLogin() {
-      const body = { email: document.getElementById('loginEmail').value, password: document.getElementById('loginPass').value };
-      const res = await fetch('/api/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
-      const data = await res.json();
-      if (data.error) return alert(data.error);
-      currentEmail = data.user.email;
-      document.getElementById('nick').textContent = data.user.nickname;
-      document.getElementById('loginBox').classList.add('hidden');
-      document.getElementById('dash').classList.remove('hidden');
-    }
-    function showCreateKey() {
+
+    function createKey() {
       const name = prompt('Nome da chave:');
-      if (!name) return;
-      fetch('/api/create-key', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email: currentEmail, name }) })
+      if (!name || !currentUser) return;
+      fetch('/api/create-key', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email: currentUser.email, name }) })
         .then(r => r.json()).then(data => {
           if (data.error) return alert(data.error);
-          document.getElementById('newKey').textContent = data.apiKey;
-          document.getElementById('keyResult').classList.remove('hidden');
+          myKeys.push({ name: data.name, key: data.apiKey, model: data.model });
+          localStorage.setItem('nilouKeys', JSON.stringify(myKeys));
+          alert('Chave criada! Copie agora:\n' + data.apiKey);
+          renderKeys();
         });
     }
+
     async function testApi() {
       const body = { k: document.getElementById('testKey').value, p: document.getElementById('testPass').value, q: document.getElementById('testQ').value };
       const res = await fetch('/', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
       const data = await res.json();
       document.getElementById('testOut').textContent = JSON.stringify(data, null, 2);
     }
-    function logout() { location.reload(); }
+
+    function logout() { localStorage.removeItem('nilouUser'); localStorage.removeItem('nilouKeys'); location.reload(); }
+
+    function showLogin() { document.getElementById('loginBox').classList.remove('hidden'); document.getElementById('registerBox').classList.add('hidden'); document.getElementById('verifyBox').classList.add('hidden'); }
+    function showRegister() { document.getElementById('loginBox').classList.add('hidden'); document.getElementById('registerBox').classList.remove('hidden'); }
+
+    async function doRegister() {
+      const body = { nickname: document.getElementById('regNick').value, email: document.getElementById('regEmail').value, password: document.getElementById('regPass').value, captcha: document.getElementById('captcha').value };
+      const res = await fetch('/api/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+      document.getElementById('showCode').textContent = data.verifyCode;
+      document.getElementById('registerBox').classList.add('hidden');
+      document.getElementById('verifyBox').classList.remove('hidden');
+      window._pendingEmail = data.email;
+    }
+
+    async function doVerify() {
+      const code = document.getElementById('verifyCode').value;
+      const res = await fetch('/api/verify', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email: window._pendingEmail, code }) });
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+      alert('Verificado! Faça login.');
+      showLogin();
+    }
+
+    async function doLogin() {
+      const body = { email: document.getElementById('loginEmail').value, password: document.getElementById('loginPass').value };
+      const res = await fetch('/api/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+      currentUser = data.user;
+      localStorage.setItem('nilouUser', JSON.stringify(currentUser));
+      document.getElementById('authOverlay').style.display = 'none';
+      showSection('dash');
+    }
+
+    if (currentUser) { document.getElementById('authOverlay').style.display = 'none'; showSection('dash'); }
   </script>
 </body>
 </html>

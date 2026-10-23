@@ -3,31 +3,161 @@
 <head>
   <meta charset="UTF-8" />
   <title>Nilou Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; }
-    .sidebar { width: 200px; background: #111; color: white; height: 100vh; position: fixed; padding: 1rem; }
-    .sidebar a { color: #aaa; display: block; margin: 0.8rem 0; text-decoration: none; }
+    body { font-family: system-ui, sans-serif; margin: 0; background: #0f1117; color: #e2e8f0; }
+    .sidebar { width: 220px; background: #111; height: 100vh; position: fixed; padding: 1.2rem; box-sizing: border-box; }
+    .sidebar h3 { margin: 0 0 1rem; }
+    .sidebar button, .sidebar a { display: block; color: #94a3b8; background: none; border: none; text-align: left; padding: 0.5rem 0; cursor: pointer; width: 100%; font-size: 0.95rem; }
+    .sidebar button:hover, .sidebar a:hover { color: white; }
     .main { margin-left: 220px; padding: 1.5rem; }
+    .card { background: #1a1d27; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; border: 1px solid #2d3348; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.8rem; }
+    .value { font-size: 1.4rem; font-weight: 700; color: #6ee7b7; }
+    input, textarea, button.action { width: 100%; padding: 0.5rem; margin: 0.3rem 0; box-sizing: border-box; background: #111; color: white; border: 1px solid #334155; border-radius: 6px; }
+    .hidden { display: none; }
+    pre { background: #111; padding: 0.8rem; border-radius: 6px; white-space: pre-wrap; font-size: 0.85rem; }
+    .masked { font-family: monospace; color: #64748b; }
   </style>
 </head>
 <body>
+  <div id="loginOverlay" style="position:fixed;inset:0;background:#0f1117;z-index:10;display:flex;align-items:center;justify-content:center;">
+    <div style="width:320px;">
+      <h2>Admin</h2>
+      <input id="admEmail" placeholder="E-mail (adm)" value="adm" />
+      <input id="admPass" type="password" placeholder="Senha" />
+      <button class="action" onclick="adminLogin()">Entrar</button>
+    </div>
+  </div>
+
   <div class="sidebar">
     <h3>Admin</h3>
-    <a href="/admin/">Início</a>
-    <a href="/admin/tables.html">Chaves</a>
+    <button onclick="show('dash')">Dashboard</button>
+    <button onclick="show('keys')">Chaves</button>
+    <button onclick="show('ai')">Acesso IA</button>
+    <button onclick="show('shell')">Shell</button>
     <a href="/">Cliente</a>
+    <button onclick="adminLogout()">Sair</button>
   </div>
+
   <div class="main">
-    <h2>Área do Administrador</h2>
-    <p>Login admin: email <b>adm</b> / senha <b>130116</b></p>
-    <button onclick="loadKeys()">Carregar chaves</button>
-    <div id="keys"></div>
+    <div id="sec-dash">
+      <h2>Dashboard</h2>
+      <div class="grid">
+        <div class="card"><div>Req/min</div><div class="value" id="rpm">—</div></div>
+        <div class="card"><div>Tokens/min</div><div class="value" id="tpm">—</div></div>
+        <div class="card"><div>Treinando</div><div class="value" id="training">—</div></div>
+      </div>
+      <div class="card"><canvas id="chart" height="80"></canvas></div>
+    </div>
+    <div id="sec-keys" class="hidden">
+      <h2>Chaves</h2>
+      <button class="action" onclick="loadKeys()">Atualizar</button>
+      <div id="keysList" class="card"></div>
+      <div id="keyMonitor" class="card hidden">
+        <h4>Monitorando: <span id="monName"></span></h4>
+        <p>Chave: <span class="masked" id="monKey"></span></p>
+      </div>
+    </div>
+    <div id="sec-ai" class="hidden">
+      <h2>Acesso direto à IA</h2>
+      <textarea id="aiQ" rows="3" placeholder="Pergunta (admin)"></textarea>
+      <button class="action" onclick="askAI()">Perguntar</button>
+      <pre id="aiOut">—</pre>
+    </div>
+    <div id="sec-shell" class="hidden">
+      <h2>Shell da IA</h2>
+      <p>Comandos: train, pause, resume, add-param</p>
+      <input id="shellCmd" placeholder="comando" />
+      <button class="action" onclick="runShell()">Executar</button>
+      <pre id="shellOut">—</pre>
+    </div>
   </div>
+
   <script>
+    let adminSession = sessionStorage.getItem('nilouAdmin') === '1';
+    let chart, rpmData = [], labels = [];
+
+    function maskKey(k) { return k ? k.slice(0,10) + '*******' + k.slice(-4) : ''; }
+
+    function show(name) {
+      ['dash','keys','ai','shell'].forEach(s => document.getElementById('sec-' + s).classList.toggle('hidden', s !== name));
+    }
+
+    async function adminLogin() {
+      const email = document.getElementById('admEmail').value;
+      const pass = document.getElementById('admPass').value;
+      const res = await fetch('/api/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ email, password: pass }) });
+      const data = await res.json();
+      if (data.error || !data.user?.isAdmin) return alert(data.error || 'Não é admin');
+      sessionStorage.setItem('nilouAdmin', '1');
+      document.getElementById('loginOverlay').style.display = 'none';
+      initChart();
+      refreshStats();
+    }
+
+    function adminLogout() { sessionStorage.removeItem('nilouAdmin'); location.reload(); }
+
+    function initChart() {
+      chart = new Chart(document.getElementById('chart'), {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Req/min', data: [], borderColor: '#6ee7b7' }] },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#e2e8f0' } } }, scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' }, beginAtZero: true } } }
+      });
+    }
+
+    async function refreshStats() {
+      try {
+        const res = await fetch('/stats');
+        const data = await res.json();
+        document.getElementById('rpm').textContent = data.requestsPerMinute ?? '—';
+        document.getElementById('tpm').textContent = data.tokensPerMinute ?? '—';
+        document.getElementById('training').textContent = data.isTraining ? 'Sim' : 'Não';
+        const now = new Date().toLocaleTimeString();
+        labels.push(now); rpmData.push(data.requestsPerMinute || 0);
+        if (labels.length > 20) { labels.shift(); rpmData.shift(); }
+        if (chart) { chart.data.labels = labels; chart.data.datasets[0].data = rpmData; chart.update(); }
+      } catch(e) {}
+    }
+
     async function loadKeys() {
       const res = await fetch('/api/admin/keys');
       const data = await res.json();
-      document.getElementById('keys').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+      const list = document.getElementById('keysList');
+      list.innerHTML = (data || []).map((item, i) => {
+        const v = item.value || {};
+        return `<div style="cursor:pointer;padding:0.4rem;border-bottom:1px solid #2d3348;" onclick="monitor(${i})"><b>${v.name || 'sem nome'}</b> — <span class="masked">${maskKey(v.key)}</span> (${v.owner || ''})</div>`;
+      }).join('') || '<p>Nenhuma chave.</p>';
+      window._keys = data || [];
+    }
+
+    function monitor(i) {
+      const v = window._keys[i]?.value || {};
+      document.getElementById('keyMonitor').classList.remove('hidden');
+      document.getElementById('monName').textContent = v.name || '';
+      document.getElementById('monKey').textContent = maskKey(v.key);
+    }
+
+    function askAI() {
+      const q = document.getElementById('aiQ').value;
+      document.getElementById('aiOut').textContent = 'Admin: ' + q + '\n(chamada direta simulada)';
+    }
+
+    function runShell() {
+      const cmd = document.getElementById('shellCmd').value.trim();
+      let out = 'Comando desconhecido. Use: train, pause, resume, add-param';
+      if (cmd === 'train') out = 'Treinamento iniciado';
+      else if (cmd === 'pause') out = 'IA pausada';
+      else if (cmd === 'resume') out = 'IA retomada';
+      else if (cmd.startsWith('add-param')) out = 'Parâmetro adicionado';
+      document.getElementById('shellOut').textContent = out;
+    }
+
+    if (adminSession) {
+      document.getElementById('loginOverlay').style.display = 'none';
+      initChart();
+      refreshStats();
+      setInterval(refreshStats, 4000);
     }
   </script>
 </body>
