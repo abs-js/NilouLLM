@@ -118,7 +118,7 @@
       setTimeout(() => el.classList.remove('show'), 3500);
     }
 
-    function maskKey(k) { return k }
+    function maskKey(k) { return k.splice(0, 12); }
     function saveKeys() { localStorage.setItem('nilouKeys', JSON.stringify(myKeys)); }
 
     function askInput(label, cb) {
@@ -173,6 +173,8 @@
             if (data.error) return toast(data.error);
             myKeys.push({ name: data.name, key: data.apiKey, model: data.model });
             saveKeys();
+            alert('Chave criada! Copie agora: ' + data.apiKey);
+            alert('Já copiou? Se não copie agora: ' + data.apiKey);
             toast('Chave criada! Copie agora: ' + data.apiKey);
             renderKeys();
           }).catch(() => toast('Erro de rede'));
