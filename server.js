@@ -8,7 +8,8 @@ import { BasicLanguageModel } from './src/model.js';
 import { initDb, db } from './src/db.js';
 import {
   registerUser, verifyUser, login, createApiKey,
-  validateKey, getLimits, ensureAdmin, updateKeyPassword
+  validateKey, getLimits, ensureAdmin, updateKeyPassword,
+  deleteKey, deleteUser
 } from './src/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -107,6 +108,27 @@ app.get('/api/admin/keys', async (req, res) => {
     const list = await db('list', 'nilou_keys');
     res.json(list?.data || []);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const list = await db('list', 'nilou_users');
+    res.json(list?.data || []);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/admin/delete-key', async (req, res) => {
+  try {
+    await deleteKey(req.body.apiKey);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+app.post('/api/admin/delete-user', async (req, res) => {
+  try {
+    await deleteUser(req.body.email);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
 app.listen(PORT, async () => {
