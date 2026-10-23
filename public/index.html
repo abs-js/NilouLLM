@@ -118,7 +118,7 @@
       setTimeout(() => el.classList.remove('show'), 3500);
     }
 
-    function maskKey(k) { return k ? k.slice(0,10) + '*******' + k.slice(-4) : ''; }
+    function maskKey(k) { return k }
     function saveKeys() { localStorage.setItem('nilouKeys', JSON.stringify(myKeys)); }
 
     function askInput(label, cb) {
