@@ -17,9 +17,12 @@
     pre { background: #f1f5f9; padding: 1rem; border-radius: 6px; white-space: pre-wrap; font-size: 0.9rem; }
     .key-item { cursor: pointer; padding: 0.5rem; border-bottom: 1px solid #e2e8f0; }
     .masked { font-family: monospace; color: #64748b; }
+    #toast { position: fixed; bottom: 20px; right: 20px; background: #111; color: white; padding: 0.8rem 1.2rem; border-radius: 8px; max-width: 320px; z-index: 100; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+    #toast.show { opacity: 1; }
   </style>
 </head>
 <body>
+  <div id="toast"></div>
   <div id="authOverlay" style="position:fixed;inset:0;background:#fff;z-index:10;display:flex;align-items:center;justify-content:center;">
     <div style="width:360px;">
       <div id="loginBox">
@@ -76,6 +79,8 @@
         <h4 id="keyDetailName"></h4>
         <p>Chave: <span class="masked" id="keyDetailMasked"></span></p>
         <p>Modelo: <span id="keyDetailModel"></span></p>
+        <input id="newKeyPass" type="password" placeholder="Nova senha para esta chave (vazio remove)" />
+        <button class="action" onclick="updatePassword()">Atualizar senha</button>
       </div>
     </div>
     <div id="section-info" class="hidden">
@@ -91,8 +96,17 @@
   <script>
     let currentUser = JSON.parse(localStorage.getItem('nilouUser') || 'null');
     let myKeys = JSON.parse(localStorage.getItem('nilouKeys') || '[]');
+    let selectedKeyIndex = -1;
+
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 3500);
+    }
 
     function maskKey(k) { return k ? k.slice(0,10) + '*******' + k.slice(-4) : ''; }
+    function saveKeys() { localStorage.setItem('nilouKeys', JSON.stringify(myKeys)); }
 
     function showSection(name) {
       ['dash','keys','info'].forEach(s => document.getElementById('section-' + s).classList.toggle('hidden', s !== name));
@@ -110,24 +124,36 @@
     }
 
     function showKeyDetail(i) {
+      selectedKeyIndex = i;
       const k = myKeys[i];
       document.getElementById('keyDetail').classList.remove('hidden');
       document.getElementById('keyDetailName').textContent = k.name;
       document.getElementById('keyDetailMasked').textContent = maskKey(k.key);
       document.getElementById('keyDetailModel').textContent = k.model || 'Nilou 0.0.0';
+      document.getElementById('newKeyPass').value = '';
     }
 
     function createKey() {
-      const name = prompt('Nome da chave:');
-      if (!name || !currentUser) return;
+      const name = prompt('Nome da chave:') || '';
+      if (!name || !currentUser) return toast('Nome obrigatório');
       fetch('/api/create-key', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email: currentUser.email, name }) })
         .then(r => r.json()).then(data => {
-          if (data.error) return alert(data.error);
+          if (data.error) return toast(data.error);
           myKeys.push({ name: data.name, key: data.apiKey, model: data.model });
-          localStorage.setItem('nilouKeys', JSON.stringify(myKeys));
-          alert('Chave criada! Copie agora:\n' + data.apiKey);
+          saveKeys();
+          toast('Chave criada! Copie agora: ' + data.apiKey);
           renderKeys();
-        });
+        }).catch(() => toast('Erro de rede'));
+    }
+
+    async function updatePassword() {
+      if (selectedKeyIndex < 0) return toast('Selecione uma chave');
+      const k = myKeys[selectedKeyIndex];
+      const pass = document.getElementById('newKeyPass').value;
+      const res = await fetch('/api/update-key-password', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ apiKey: k.key, password: pass }) });
+      const data = await res.json();
+      if (data.error) return toast(data.error);
+      toast(pass ? 'Senha atualizada' : 'Senha removida');
     }
 
     async function testApi() {
@@ -146,7 +172,7 @@
       const body = { nickname: document.getElementById('regNick').value, email: document.getElementById('regEmail').value, password: document.getElementById('regPass').value, captcha: document.getElementById('captcha').value };
       const res = await fetch('/api/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
       const data = await res.json();
-      if (data.error) return alert(data.error);
+      if (data.error) return toast(data.error);
       document.getElementById('showCode').textContent = data.verifyCode;
       document.getElementById('registerBox').classList.add('hidden');
       document.getElementById('verifyBox').classList.remove('hidden');
@@ -157,8 +183,8 @@
       const code = document.getElementById('verifyCode').value;
       const res = await fetch('/api/verify', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email: window._pendingEmail, code }) });
       const data = await res.json();
-      if (data.error) return alert(data.error);
-      alert('Verificado! Faça login.');
+      if (data.error) return toast(data.error);
+      toast('Verificado! Faça login.');
       showLogin();
     }
 
@@ -166,9 +192,10 @@
       const body = { email: document.getElementById('loginEmail').value, password: document.getElementById('loginPass').value };
       const res = await fetch('/api/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
       const data = await res.json();
-      if (data.error) return alert(data.error);
+      if (data.error) return toast(data.error);
       currentUser = data.user;
       localStorage.setItem('nilouUser', JSON.stringify(currentUser));
+      myKeys = JSON.parse(localStorage.getItem('nilouKeys') || '[]');
       document.getElementById('authOverlay').style.display = 'none';
       showSection('dash');
     }
