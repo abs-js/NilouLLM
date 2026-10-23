@@ -91,16 +91,27 @@ export async function updateKeyPassword(apiKey, newPassword) {
   return true;
 }
 
+export function getLimits(keyData) {
+  if (!keyData.limits) return { unlimited: true };
+  return keyData.limits;
+}
+
+export async function deleteKey(apiKey) {
+  await db('delete', 'nilou_keys', `niloukey__${apiKey}`);
+  return true;
+}
+
+export async function deleteUser(email) {
+  await db('delete', 'nilou_users', `nilouUser_${email.toLowerCase()}`);
+  return true;
+}
+
 export async function validateKey(apiKey, password = '') {
   const res = await db('get', 'nilou_keys', `niloukey__${apiKey}`);
   const keyData = res?.value;
   if (!keyData) throw new Error('Chave inválida');
   if (keyData.passwordHash && hash(password) !== keyData.passwordHash) throw new Error('Senha da chave incorreta');
   return keyData;
-}
-
-export function getLimits(keyData) {
-  return keyData.limits ? keyData.limits : { unlimited: true };
 }
 
 export async function ensureAdmin() {
