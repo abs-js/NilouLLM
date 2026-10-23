@@ -1,14 +1,10 @@
-Conhecimento geral:
-
 O sol é uma estrela no centro do sistema solar.
 A Terra é o terceiro planeta a partir do sol.
-Água é composta por hidrogênio e oxigênio (H2O).
+A água é composta por hidrogênio e oxigênio (H2O).
+Mercúrio é o planeta mais próximo do sol.
 
-Linguagem:
-Uma frase tem sujeito, verbo e predicado.
-Exemplo: O gato comeu o peixe.
+Uma frase tem sujeito, verbo e predicado. Exemplo: O gato comeu.
 
-Ciência:
 A gravidade é a força que atrai objetos com massa.
 A velocidade da luz é aproximadamente 300.000 km/s.
 
