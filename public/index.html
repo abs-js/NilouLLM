@@ -19,10 +19,22 @@
     .masked { font-family: monospace; color: #64748b; }
     #toast { position: fixed; bottom: 20px; right: 20px; background: #111; color: white; padding: 0.8rem 1.2rem; border-radius: 8px; max-width: 320px; z-index: 100; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
     #toast.show { opacity: 1; }
+    #inputModal { position: fixed; inset: 0; background: rgba(0,0,0,0.4); display: none; align-items: center; justify-content: center; z-index: 50; }
+    #inputModal.show { display: flex; }
+    #inputModal .box { background: white; padding: 1.2rem; border-radius: 10px; width: 320px; }
   </style>
 </head>
 <body>
   <div id="toast"></div>
+  <div id="inputModal">
+    <div class="box">
+      <p id="inputLabel">Nome da chave</p>
+      <input id="inputValue" />
+      <button class="action" onclick="confirmInput()">OK</button>
+      <button class="action" style="background:#666;margin-top:0.4rem;" onclick="cancelInput()">Cancelar</button>
+    </div>
+  </div>
+
   <div id="authOverlay" style="position:fixed;inset:0;background:#fff;z-index:10;display:flex;align-items:center;justify-content:center;">
     <div style="width:360px;">
       <div id="loginBox">
@@ -97,6 +109,7 @@
     let currentUser = JSON.parse(localStorage.getItem('nilouUser') || 'null');
     let myKeys = JSON.parse(localStorage.getItem('nilouKeys') || '[]');
     let selectedKeyIndex = -1;
+    let inputCallback = null;
 
     function toast(msg) {
       const el = document.getElementById('toast');
@@ -107,6 +120,24 @@
 
     function maskKey(k) { return k ? k.slice(0,10) + '*******' + k.slice(-4) : ''; }
     function saveKeys() { localStorage.setItem('nilouKeys', JSON.stringify(myKeys)); }
+
+    function askInput(label, cb) {
+      document.getElementById('inputLabel').textContent = label;
+      document.getElementById('inputValue').value = '';
+      document.getElementById('inputModal').classList.add('show');
+      inputCallback = cb;
+      setTimeout(() => document.getElementById('inputValue').focus(), 50);
+    }
+    function confirmInput() {
+      const val = document.getElementById('inputValue').value.trim();
+      document.getElementById('inputModal').classList.remove('show');
+      if (inputCallback) inputCallback(val);
+      inputCallback = null;
+    }
+    function cancelInput() {
+      document.getElementById('inputModal').classList.remove('show');
+      inputCallback = null;
+    }
 
     function showSection(name) {
       ['dash','keys','info'].forEach(s => document.getElementById('section-' + s).classList.toggle('hidden', s !== name));
@@ -134,16 +165,18 @@
     }
 
     function createKey() {
-      const name = prompt('Nome da chave:') || '';
-      if (!name || !currentUser) return toast('Nome obrigatório');
-      fetch('/api/create-key', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email: currentUser.email, name }) })
-        .then(r => r.json()).then(data => {
-          if (data.error) return toast(data.error);
-          myKeys.push({ name: data.name, key: data.apiKey, model: data.model });
-          saveKeys();
-          toast('Chave criada! Copie agora: ' + data.apiKey);
-          renderKeys();
-        }).catch(() => toast('Erro de rede'));
+      if (!currentUser) return toast('Faça login primeiro');
+      askInput('Nome da chave:', (name) => {
+        if (!name) return toast('Nome obrigatório');
+        fetch('/api/create-key', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email: currentUser.email, name }) })
+          .then(r => r.json()).then(data => {
+            if (data.error) return toast(data.error);
+            myKeys.push({ name: data.name, key: data.apiKey, model: data.model });
+            saveKeys();
+            toast('Chave criada! Copie agora: ' + data.apiKey);
+            renderKeys();
+          }).catch(() => toast('Erro de rede'));
+      });
     }
 
     async function updatePassword() {
