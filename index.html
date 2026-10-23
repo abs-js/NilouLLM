@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nilou 0.0.0 — Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --accent: #6ee7b7;
+      --accent2: #38bdf8;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 1.5rem;
+    }
+    h1 { margin: 0 0 0.25rem; font-size: 1.8rem; }
+    .subtitle { color: var(--muted); margin-bottom: 1.5rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      padding: 1rem 1.2rem;
+      border: 1px solid #2d3348;
+    }
+    .card h3 { margin: 0 0 0.3rem; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .card .value { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 800px) {
+      .charts { grid-template-columns: 1fr; }
+    }
+    .chart-card { background: var(--card); border-radius: 12px; padding: 1rem; border: 1px solid #2d3348; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td { text-align: left; padding: 0.6rem 0.5rem; border-bottom: 1px solid #2d3348; }
+    th { color: var(--muted); font-weight: 500; }
+    .type-Response { color: var(--accent); }
+    .type-NextWord { color: var(--accent2); }
+    .refresh { color: var(--muted); font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>Nilou 0.0.0</h1>
+  <div class="subtitle">Real-time status • <span class="refresh" id="lastUpdate">loading...</span></div>
+
+  <div class="grid">
+    <div class="card"><h3>Requests / min</h3><div class="value" id="rpm">—</div></div>
+    <div class="card"><h3>Tokens / min</h3><div class="value" id="tpm">—</div></div>
+    <div class="card"><h3>Tokens / sec</h3><div class="value" id="tps">—</div></div>
+    <div class="card"><h3>Daily requests</h3><div class="value" id="daily">—</div></div>
+    <div class="card"><h3>Total requests</h3><div class="value" id="total">—</div></div>
+    <div class="card"><h3>Total tokens</h3><div class="value" id="totalTokens">—</div></div>
+    <div class="card"><h3>Uptime</h3><div class="value" id="uptime">—</div></div>
+    <div class="card"><h3>Topics</h3><div class="value" id="topics">—</div></div>
+  </div>
+
+  <div class="charts">
+    <div class="chart-card">
+      <canvas id="rpmChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <canvas id="tpmChart"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-bottom:0.8rem;">Recent requests</h3>
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Type</th><th>Input</th><th>Output</th><th>Tokens</th></tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const rpmData = [];
+    const tpmData = [];
+    const labels = [];
+
+    const rpmChart = new Chart(document.getElementById('rpmChart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{ label: 'Requests / min', data: [], borderColor: '#6ee7b7', tension: 0.3, fill: false }]
+      },
+      options: { responsive: true, plugins: { legend: { labels: { color: '#e2e8f0' } } }, scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' }, beginAtZero: true } } }
+    });
+
+    const tpmChart = new Chart(document.getElementById('tpmChart'), {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{ label: 'Tokens / min', data: [], borderColor: '#38bdf8', tension: 0.3, fill: false }]
+      },
+      options: { responsive: true, plugins: { legend: { labels: { color: '#e2e8f0' } } }, scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' }, beginAtZero: true } } }
+    });
+
+    function formatUptime(sec) {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      return `${h}h ${m}m ${s}s`;
+    }
+
+    async function refresh() {
+      try {
+        const res = await fetch('/stats');
+        const data = await res.json();
+
+        document.getElementById('rpm').textContent = data.requestsPerMinute;
+        document.getElementById('tpm').textContent = data.tokensPerMinute;
+        document.getElementById('tps').textContent = data.tokensPerSecond;
+        document.getElementById('daily').textContent = data.dailyRequests;
+        document.getElementById('total').textContent = data.totalRequests;
+        document.getElementById('totalTokens').textContent = data.totalTokens;
+        document.getElementById('uptime').textContent = formatUptime(data.uptime);
+        document.getElementById('topics').textContent = data.knowledgeTopics;
+
+        const now = new Date().toLocaleTimeString();
+        labels.push(now);
+        rpmData.push(data.requestsPerMinute);
+        tpmData.push(data.tokensPerMinute);
+        if (labels.length > 30) {
+          labels.shift(); rpmData.shift(); tpmData.shift();
+        }
+
+        rpmChart.data.labels = labels;
+        rpmChart.data.datasets[0].data = rpmData;
+        rpmChart.update();
+
+        tpmChart.data.labels = labels;
+        tpmChart.data.datasets[0].data = tpmData;
+        tpmChart.update();
+
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = data.recentRequests.map(r => `
+          <tr>
+            <td>${new Date(r.time).toLocaleTimeString()}</td>
+            <td class="type-${r.type}">${r.type}</td>
+            <td>${r.input}</td>
+            <td>${r.output}</td>
+            <td>${r.tokens}</td>
+          </tr>
+        `).join('');
+
+        document.getElementById('lastUpdate').textContent = 'updated ' + now;
+      } catch (e) {
+        document.getElementById('lastUpdate').textContent = 'error loading stats';
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 3000);
+  </script>
+</body>
+</html>
