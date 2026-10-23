@@ -1,1 +1,14 @@
-Matemática básica:\nAdição: 2 + 2 = 4\nSubtração: 5 - 3 = 2\nMultiplicação: 4 * 3 = 12\nDivisão: 10 / 2 = 5\n\nTeorema de Pitágoras: a² + b² = c²\n\nExemplo de cálculo:\n-code:python\nimport math\nprint(math.sqrt(9))\ncode-\n\nNúmeros inteiros, racionais e irracionais existem.\n</s>
+Matemática básica:
+2 + 2 = 4
+5 - 3 = 2
+4 * 3 = 12
+10 / 2 = 5
+
+Teorema de Pitágoras: a ao quadrado mais b ao quadrado é igual a c ao quadrado.
+
+Exemplo em Python:
+-code:python
+import math
+print(math.sqrt(9))
+code-
+</s>

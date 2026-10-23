@@ -1,1 +1,11 @@
-Python é uma linguagem de alto nível e interpretada.\nCaracterísticas: sintaxe limpa, tipagem dinâmica, grande biblioteca padrão.\n\nExemplo de código:\n-code:python\nprint("Olá, mundo!")\ndef soma(a, b):\n    return a + b\ncode-\n\nPython é usado em ciência de dados, web e automação.\n</s>
+Python é uma linguagem de programação de alto nível e interpretada.
+Tem sintaxe limpa e tipagem dinâmica.
+É usada em ciência de dados, web e automação.
+
+Exemplo:
+-code:python
+print("Olá, mundo!")
+def soma(a, b):
+    return a + b
+code-
+</s>

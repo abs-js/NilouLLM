@@ -1,1 +1,11 @@
-JavaScript é a linguagem da web.\nRoda no navegador e no Node.js.\n\nExemplo:\n-code:javascript\nconsole.log("Olá");\nconst soma = (a, b) => a + b;\ncode-\n\nVariáveis: let, const, var.\nFunções podem ser arrow functions.\n</s>
+JavaScript é a linguagem usada na web.
+Funciona no navegador e no Node.js.
+
+Exemplo:
+-code:javascript
+console.log("Olá");
+const soma = (a, b) => a + b;
+code-
+
+Variáveis modernas usam let e const.
+</s>
