@@ -28,12 +28,10 @@ export async function registerUser(nickname, email, password) {
   const key = `nilouUser_${email.toLowerCase()}`;
   const existing = await db('get', 'nilou_users', key).catch(() => null);
   if (existing?.value) throw new Error('E-mail já cadastrado');
-
   const code = generateCode();
   const user = {
     nickname, email: email.toLowerCase(), passwordHash: hash(password),
-    verified: false, verifyCode: code,
-    isAdmin: nickname === ADMIN_NICK,
+    verified: false, verifyCode: code, isAdmin: nickname === ADMIN_NICK,
     createdAt: new Date().toISOString(), keys: []
   };
   await db('set', 'nilou_users', key, user);
@@ -69,13 +67,11 @@ export async function createApiKey(email, name, model = 'Nilou 0.0.0', keyPasswo
   if (!user) throw new Error('Usuário não encontrado');
   const isAdmin = user.isAdmin || user.nickname === ADMIN_NICK;
   if (!isAdmin && (user.keys || []).length >= 1) throw new Error('Usuários normais só podem ter 1 chave');
-
   const apiKey = generateKey();
   const keyData = {
     key: apiKey, name, model,
     passwordHash: keyPassword ? hash(keyPassword) : null,
-    owner: email.toLowerCase(),
-    createdAt: new Date().toISOString(),
+    owner: email.toLowerCase(), createdAt: new Date().toISOString(),
     limits: isAdmin ? null : { reqPerMin: 2, tokensPerMin: 200, dailyReq: 40, monthlyReq: 600 },
     usage: { requests: 0, tokens: 0 }
   };
@@ -84,6 +80,15 @@ export async function createApiKey(email, name, model = 'Nilou 0.0.0', keyPasswo
   user.keys.push({ key: apiKey, name, model });
   await db('set', 'nilou_users', userKey, user);
   return { apiKey, name, model };
+}
+
+export async function updateKeyPassword(apiKey, newPassword) {
+  const res = await db('get', 'nilou_keys', `niloukey__${apiKey}`);
+  const keyData = res?.value;
+  if (!keyData) throw new Error('Chave não encontrada');
+  keyData.passwordHash = newPassword ? hash(newPassword) : null;
+  await db('set', 'nilou_keys', `niloukey__${apiKey}`, keyData);
+  return true;
 }
 
 export async function validateKey(apiKey, password = '') {
@@ -107,7 +112,6 @@ export async function ensureAdmin() {
         nickname: ADMIN_NICK, email: ADMIN_USER, passwordHash: hash(ADMIN_PASS),
         verified: true, isAdmin: true, createdAt: new Date().toISOString(), keys: []
       });
-      console.log('[Auth] Admin criado');
     }
-  } catch (e) { console.error(e.message); }
+  } catch (e) {}
 }
