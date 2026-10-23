@@ -2,6 +2,7 @@
  * Nilou Language Model - pure JS from scratch
  * Tools: calculator, search, extract
  * Modes: fast, normal, thinker
+ * + nextWord prediction
  */
 
 import fs from 'fs';
@@ -67,6 +68,41 @@ export class BasicLanguageModel {
     }
   }
 
+  nextWord(text) {
+    const tokens = this.tokenize(text);
+    if (tokens.length === 0) return { word: '', confidence: 0 };
+    const next = this.nextToken(tokens);
+    const context = tokens.slice(-(this.n - 1)).join(' ');
+    const candidates = this.ngrams.get(context);
+    let confidence = 0;
+    if (candidates && candidates.size > 0 && next) {
+      const total = Array.from(candidates.values()).reduce((a, b) => a + b, 0);
+      confidence = (candidates.get(next) || 0) / total;
+    }
+    return {
+      word: next || '',
+      confidence: Math.round(confidence * 100) / 100,
+      context
+    };
+  }
+
+  nextToken(contextTokens) {
+    const context = contextTokens.slice(-(this.n - 1)).join(' ');
+    const candidates = this.ngrams.get(context);
+    if (!candidates || candidates.size === 0) return '';
+    const entries = Array.from(candidates.entries());
+    const total = entries.reduce((s, [, c]) => s + c, 0);
+    let probs = entries.map(([w, c]) => ({ w, p: Math.pow(c / total, 1 / this.temperature) }));
+    const sum = probs.reduce((s, x) => s + x.p, 0);
+    probs = probs.map(x => ({ ...x, p: x.p / sum }));
+    let r = Math.random();
+    for (const { w, p } of probs) {
+      r -= p;
+      if (r <= 0) return w;
+    }
+    return probs[0]?.w || '';
+  }
+
   toolCalculator(a, op, b) {
     const ops = {
       '+': (x, y) => x + y,
@@ -76,9 +112,7 @@ export class BasicLanguageModel {
       '**': (x, y) => x ** y,
       '^': (x, y) => x ** y
     };
-
     let numA, numB, operator;
-
     if (typeof a === 'string' && op === undefined) {
       const match = a.match(/(-?\d+\.?\d*)\s*([+\-*/^])\s*(-?\d+\.?\d*)/);
       if (!match) return null;
@@ -90,11 +124,9 @@ export class BasicLanguageModel {
       numB = parseFloat(b);
       operator = op;
     }
-
     if (isNaN(numA) || isNaN(numB) || !ops[operator]) return null;
     const result = ops[operator](numA, numB);
     if (result === null || !isFinite(result)) return null;
-
     return { tool: 'calculadora', input: `${numA} ${operator} ${numB}`, result };
   }
 
@@ -115,7 +147,6 @@ export class BasicLanguageModel {
     const items = topic ? this.knowledge.filter(k => k.topic === topic) : this.knowledge;
     const sentences = [];
     const qTokens = this.tokenize(query);
-
     for (const item of items) {
       for (const sent of item.sentences) {
         const overlap = qTokens.filter(t => sent.toLowerCase().includes(t)).length;
@@ -144,10 +175,8 @@ export class BasicLanguageModel {
   answerFast(query) {
     const calc = this.detectAndCalculate(query);
     if (calc) return `Cálculo: ${calc.input} = ${calc.result}`;
-
     const relevant = this.retrieve(query, 1);
     if (!relevant.length) return "Não sei. Sem informação na base.";
-
     const best = relevant[0];
     const sent = best.sentences.find(s => this.tokenize(query).some(t => s.toLowerCase().includes(t))) || best.sentences[0];
     return `[${best.topic}] ${sent}`;
@@ -156,10 +185,8 @@ export class BasicLanguageModel {
   answerNormal(query) {
     const calc = this.detectAndCalculate(query);
     if (calc) return `Cálculo: ${calc.input} = ${calc.result}`;
-
     const extract = this.toolExtract(query);
     if (!extract.sentences.length) return "Não encontrei informações relevantes.";
-
     let draft = extract.sentences.map(s => s.sentence).join('. ');
     return this.revise(draft, query);
   }
@@ -167,7 +194,6 @@ export class BasicLanguageModel {
   answerThinker(query) {
     const calc = this.detectAndCalculate(query);
     const extract = this.toolExtract(query);
-
     let draft = '';
     if (calc) draft += `Resultado do cálculo: ${calc.result}. `;
     if (extract.sentences.length) {
@@ -175,7 +201,6 @@ export class BasicLanguageModel {
     } else {
       draft += "Não encontrei informação específica.";
     }
-
     return this.revise(draft, query);
   }
 
@@ -193,7 +218,6 @@ export class BasicLanguageModel {
         }
       } catch (e) {}
     }
-
     const simple = query.match(/(-?\d+\.?\d*)\s*([+\-*/^])\s*(-?\d+\.?\d*)/);
     if (simple) return this.toolCalculator(simple[1], simple[2], simple[3]);
     return null;
