@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 const token = process.argv[2] || process.env.SUPABASE_KEY;
 initDb(token);
 
-const nilou = new BasicLanguageModel({ n: 2, temperature: 0.4, maxTokens: 80 });
+const nilou = new BasicLanguageModel({ n: 2, temperature: 0.5, maxTokens: 120 });
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
