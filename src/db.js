@@ -4,11 +4,12 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { KEY } from '../server.js';
 
 const SUPABASE_URL = 'https://mfwqqkzlqlklnrgabvvx.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_QI81OZKskWRgjBz5ZoYABQ_Py3m3Zb2';
+const SUPABASE_KEY = ;
 
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb = createClient(SUPABASE_URL, KEY);
 
 export async function db(action, table, key = null, value = null) {
   const { data, error } = await sb.functions.invoke('DB', {
