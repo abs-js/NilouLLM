@@ -1,0 +1,21 @@
+Python é uma linguagem de programação de alto nível, interpretada e de propósito geral.
+
+Características principais do Python:
+- Sintaxe limpa e legível
+- Tipagem dinâmica
+- Suporte a múltiplos paradigmas (orientado a objetos, funcional, procedural)
+- Grande biblioteca padrão
+- Comunidade ativa
+
+Exemplo básico:
+print("Olá, mundo!")
+
+Variáveis em Python não precisam de declaração de tipo.
+x = 10
+nome = "João"
+
+Funções são definidas com def:
+def saudacao(nome):
+    return f"Olá, {nome}!"
+
+Python é amplamente usado em ciência de dados, web, automação e inteligência artificial.

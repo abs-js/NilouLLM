@@ -1,0 +1,16 @@
+Conhecimento geral:
+
+O sol é uma estrela no centro do sistema solar.
+A Terra é o terceiro planeta a partir do sol.
+Água é composta por hidrogênio e oxigênio (H2O).
+
+Linguagem:
+Uma frase tem sujeito, verbo e predicado.
+Exemplo: O gato comeu o peixe.
+
+Ciência:
+A gravidade é a força que atrai objetos com massa.
+A velocidade da luz é aproximadamente 300.000 km/s.
+
+Este modelo só responde com base nas informações contidas nos arquivos de parâmetros.
+Se não houver informação relevante, ele deve indicar que não sabe.

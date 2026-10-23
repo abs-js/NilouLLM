@@ -1,0 +1,22 @@
+Matemática básica:
+
+Adição: 2 + 2 = 4
+Subtração: 5 - 3 = 2
+Multiplicação: 4 * 3 = 12
+Divisão: 10 / 2 = 5
+
+Álgebra:
+Uma equação linear é da forma ax + b = c
+Exemplo: 2x + 3 = 7 → 2x = 4 → x = 2
+
+Geometria:
+Área de um quadrado: lado * lado
+Área de um círculo: π * raio²
+Perímetro de um retângulo: 2 * (comprimento + largura)
+
+Teorema de Pitágoras: a² + b² = c² (para triângulo retângulo)
+
+Números:
+- Inteiros: ..., -2, -1, 0, 1, 2, ...
+- Racionais: frações como 1/2, 3/4
+- Irracionais: π, √2
