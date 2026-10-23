@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Nilou — Tabelas</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; }
+    .sidebar { width: 200px; background: #111; color: white; height: 100vh; position: fixed; padding: 1rem; }
+    .sidebar a { color: #aaa; display: block; margin: 0.8rem 0; text-decoration: none; }
+    .main { margin-left: 220px; padding: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { border-bottom: 1px solid #ddd; padding: 0.6rem; text-align: left; }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h3>Admin</h3>
+    <a href="/admin/">Início</a>
+    <a href="/admin/tables.html">Chaves</a>
+  </div>
+  <div class="main">
+    <h2>Todas as chaves</h2>
+    <button onclick="load()">Atualizar</button>
+    <table id="tbl"><thead><tr><th>Chave</th><th>Nome</th><th>Dono</th><th>Modelo</th></tr></thead><tbody></tbody></table>
+  </div>
+  <script>
+    async function load() {
+      const res = await fetch('/api/admin/keys');
+      const data = await res.json();
+      const tbody = document.querySelector('#tbl tbody');
+      tbody.innerHTML = (data || []).map(item => {
+        const v = item.value || {};
+        return `<tr><td>${v.key || ''}</td><td>${v.name || ''}</td><td>${v.owner || ''}</td><td>${v.model || ''}</td></tr>`;
+      }).join('');
+    }
+    load();
+  </script>
+</body>
+</html>
