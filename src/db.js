@@ -1,28 +1,40 @@
-/**
- * Cliente DB para Nilou - usa Supabase Edge Function "DB"
- * Prefixo de chaves: Nilou000_
- */
-
 import { createClient } from '@supabase/supabase-js';
-import { KEY } from '../server.js';
 
 const SUPABASE_URL = 'https://mfwqqkzlqlklnrgabvvx.supabase.co';
-const SUPABASE_KEY = ;
 
-const sb = createClient(SUPABASE_URL, KEY);
+// Argumento passado após server.js; variável de ambiente como alternativa.
+const SUPABASE_KEY = process.argv[2] || process.env.SUPABASE_KEY;
+
+const sb = SUPABASE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_KEY)
+  : null;
 
 export async function db(action, table, key = null, value = null) {
+  if (!sb) {
+    throw new Error('Chave do Supabase não configurada.');
+  }
+
   const { data, error } = await sb.functions.invoke('DB', {
     body: { action, table, key, value }
   });
 
   if (error) {
-    let detalhes = '';
+    let details = '';
+
     try {
-      if (error.context) detalhes = await error.context.text();
+      if (error.context) {
+        details = await error.context.text();
+      }
     } catch {}
-    throw new Error(error.message + (detalhes ? ' | ' + detalhes : ''));
+
+    throw new Error(
+      error.message + (details ? ` | ${details}` : '')
+    );
   }
-  if (data?.error) throw new Error(data.error);
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
   return data;
 }
