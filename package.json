@@ -1,20 +1,17 @@
 {
   "name": "nilou-llm",
   "version": "0.0.0",
-  "description": "Nilou 0.0.0 - Modelo de linguagem básico do zero em JavaScript puro. API JSON + persistência Supabase.",
+  "description": "Nilou 0.0.0 - Modelo de linguagem básico com chaves de API, login e dashboard.",
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "node server.js"
   },
-  "keywords": ["nilou", "language-model", "javascript", "from-scratch", "api"],
-  "author": "Nilou",
-  "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0"
+    "@supabase/supabase-js": "^2.45.0",
+    "express": "^4.21.0"
   }
 }
