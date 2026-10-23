@@ -1,0 +1,1 @@
+Git é um sistema de controle de versão.\nComandos básicos:\n\n-code:bash\ngit init\ngit add .\ngit commit -m "mensagem"\ngit push\ncode-\n\nBranches permitem trabalhar em paralelo.\ngit checkout -b nova-branch cria uma branch.\n</s>
