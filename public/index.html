@@ -118,7 +118,7 @@
       setTimeout(() => el.classList.remove('show'), 3500);
     }
 
-    function maskKey(k) { return k.splice(0, 12); }
+    function maskKey(k) { return k.slice(0, 12) + '*'.repeat(k.length - 12) || '***?'; }
     function saveKeys() { localStorage.setItem('nilouKeys', JSON.stringify(myKeys)); }
 
     function askInput(label, cb) {
