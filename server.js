@@ -1,7 +1,7 @@
 /**
  * Nilou 0.0.0 - Server
  * POST / { m, q, c } → { r, t }
- * Always next-word until </s>
+ * POST /clean → limpa logs antigos do Supabase
  */
 
 import http from 'http';
@@ -56,6 +56,7 @@ function recordRequest(input, output, tokens) {
 function getStats() {
   const now = Date.now();
   const rpm = stats.requestsPerMinute.filter(t => t > now - 60000).length;
+  const tpm = stats.tokensPerMinute.filter(x => x.t > now - 60000).reduce((s, x) => s + x.tokens, 0);
   return {
     model: MODEL_NAME,
     uptime: Math.floor((now - stats.startTime)/1000),
@@ -63,6 +64,8 @@ function getStats() {
     dailyRequests: stats.dailyRequests,
     totalTokens: stats.totalTokens,
     requestsPerMinute: rpm,
+    tokensPerMinute: tpm,
+    tokensPerSecond: Math.round(tpm / 60 * 10) / 10,
     maxRequestsPerMinute: MAX_REQUESTS_PER_MINUTE,
     maxTokensPerRequest: MAX_TOKENS_PER_REQUEST,
     recentRequests: stats.recentRequests.slice(0,15),
@@ -80,11 +83,31 @@ async function saveInteraction(q, r, tokens) {
   } catch(e) {}
 }
 
+async function cleanOldLogs(days = 7) {
+  try {
+    const list = await db('list', 'nilou_logs');
+    const items = list?.data || [];
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    let deleted = 0;
+    for (const item of items) {
+      const key = item.key || item.id;
+      const ts = item.value?.timestamp ? new Date(item.value.timestamp).getTime() : 0;
+      if (ts && ts < cutoff) {
+        await db('delete', 'nilou_logs', key);
+        deleted++;
+      }
+    }
+    return { deleted, total: items.length };
+  } catch (err) {
+    return { error: err.message };
+  }
+}
+
 setInterval(() => {
   if (Date.now() - stats.lastRequestTime >= IDLE_TRAIN_MS && !stats.isTraining) {
     stats.isTraining = true;
     stats.trainingCycles++;
-    try { nilou.train(); } catch(e) {}
+    try { nilou.train && nilou.train(); } catch(e) {}
     setTimeout(() => { stats.isTraining = false; }, 20000);
   }
 }, 30000);
@@ -107,6 +130,15 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/stats') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify(getStats()));
+  }
+
+  if (req.method === 'POST' && req.url === '/clean') {
+    const result = await cleanOldLogs(7);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({
+      message: result.error ? 'Erro: ' + result.error : `Removidos ${result.deleted} logs antigos de ${result.total}`,
+      ...result
+    }));
   }
 
   if (req.method === 'POST' && req.url === '/') {
@@ -141,6 +173,6 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Nilou ${MODEL_NAME} on ${PORT}`);
-  console.log(`POST / {m,q,c} → {r,t} | max ${MAX_REQUESTS_PER_MINUTE}/min`);
+  console.log(`POST / {m,q,c} → {r,t} | POST /clean`);
   log('Server started');
 });
