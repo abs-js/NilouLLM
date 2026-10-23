@@ -1,8 +1,6 @@
 /**
  * Nilou Language Model - pure JS from scratch
- * Tools: calculator, search, extract
- * Modes: fast, normal, thinker
- * + nextWord prediction
+ * Always generates via next-word until </s>
  */
 
 import fs from 'fs';
@@ -16,22 +14,11 @@ export class BasicLanguageModel {
     this.mode = options.mode || 'normal';
     this.n = options.n || 2;
     this.temperature = options.temperature || 0.6;
-    this.maxTokens = options.maxTokens || 60;
-    this.revisionSteps = options.revisionSteps ?? (this.mode === 'thinker' ? 2 : 1);
-    this.thinkingRounds = options.thinkingRounds ?? (this.mode === 'thinker' ? 3 : 1);
+    this.maxTokens = options.maxTokens || 80;
     this.paramsDir = options.paramsDir || path.join(__dirname, '../params');
-
-    this.neuronWeights = options.neuronWeights || {
-      keyword: 1.2,
-      topic: 1.5,
-      calc: 2.0,
-      tool: 1.8
-    };
-
     this.ngrams = new Map();
     this.knowledge = [];
     this.vocabulary = new Set();
-
     this.loadKnowledge();
     this.train();
   }
@@ -42,18 +29,15 @@ export class BasicLanguageModel {
     for (const file of files) {
       const topic = path.basename(file, '.txt');
       const content = fs.readFileSync(path.join(this.paramsDir, file), 'utf-8');
-      const sentences = content.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 8);
+      const sentences = content.split(/[.!?]+/).map(s => s.trim()).filter(s => s.length > 5);
       this.knowledge.push({ topic, content, sentences });
       this.tokenize(content).forEach(t => this.vocabulary.add(t));
     }
-    console.log(`[${this.mode}] Conhecimento: ${this.knowledge.length} tópicos`);
+    console.log(`Conhecimento: ${this.knowledge.length} tópicos`);
   }
 
   tokenize(text) {
-    return text.toLowerCase()
-      .replace(/[^\w\sáéíóúâêîôûãõç+\-*/=]/g, ' ')
-      .split(/\s+/)
-      .filter(Boolean);
+    return text.toLowerCase().replace(/[^\w\sáéíóúâêîôûãõç+\-*/=<>]/g, ' ').split(/\s+/).filter(Boolean);
   }
 
   train() {
@@ -70,182 +54,52 @@ export class BasicLanguageModel {
 
   nextWord(text) {
     const tokens = this.tokenize(text);
-    if (tokens.length === 0) return { word: '', confidence: 0 };
+    if (!tokens.length) return { word: '', confidence: 0 };
     const next = this.nextToken(tokens);
-    const context = tokens.slice(-(this.n - 1)).join(' ');
-    const candidates = this.ngrams.get(context);
-    let confidence = 0;
-    if (candidates && candidates.size > 0 && next) {
-      const total = Array.from(candidates.values()).reduce((a, b) => a + b, 0);
-      confidence = (candidates.get(next) || 0) / total;
-    }
-    return {
-      word: next || '',
-      confidence: Math.round(confidence * 100) / 100,
-      context
-    };
+    return { word: next || '', confidence: 0.5 };
   }
 
   nextToken(contextTokens) {
     const context = contextTokens.slice(-(this.n - 1)).join(' ');
     const candidates = this.ngrams.get(context);
-    if (!candidates || candidates.size === 0) return '';
+    if (!candidates || !candidates.size) return '';
     const entries = Array.from(candidates.entries());
     const total = entries.reduce((s, [, c]) => s + c, 0);
-    let probs = entries.map(([w, c]) => ({ w, p: Math.pow(c / total, 1 / this.temperature) }));
-    const sum = probs.reduce((s, x) => s + x.p, 0);
-    probs = probs.map(x => ({ ...x, p: x.p / sum }));
-    let r = Math.random();
-    for (const { w, p } of probs) {
-      r -= p;
+    let r = Math.random() * total;
+    for (const [w, c] of entries) {
+      r -= c;
       if (r <= 0) return w;
     }
-    return probs[0]?.w || '';
+    return entries[0][0];
   }
 
-  toolCalculator(a, op, b) {
-    const ops = {
-      '+': (x, y) => x + y,
-      '-': (x, y) => x - y,
-      '*': (x, y) => x * y,
-      '/': (x, y) => y !== 0 ? x / y : null,
-      '**': (x, y) => x ** y,
-      '^': (x, y) => x ** y
-    };
-    let numA, numB, operator;
-    if (typeof a === 'string' && op === undefined) {
-      const match = a.match(/(-?\d+\.?\d*)\s*([+\-*/^])\s*(-?\d+\.?\d*)/);
-      if (!match) return null;
-      numA = parseFloat(match[1]);
-      operator = match[2] === '^' ? '**' : match[2];
-      numB = parseFloat(match[3]);
-    } else {
-      numA = parseFloat(a);
-      numB = parseFloat(b);
-      operator = op;
+  generateUntilEnd(prompt, maxTokens = 80) {
+    let current = prompt.trim();
+    const generated = [];
+    let tokensUsed = 0;
+    for (let i = 0; i < maxTokens; i++) {
+      const pred = this.nextWord(current);
+      const word = pred.word || '';
+      if (!word || word === '</s>' || word.includes('</s>')) {
+        generated.push('</s>');
+        break;
+      }
+      generated.push(word);
+      current += ' ' + word;
+      tokensUsed++;
     }
-    if (isNaN(numA) || isNaN(numB) || !ops[operator]) return null;
-    const result = ops[operator](numA, numB);
-    if (result === null || !isFinite(result)) return null;
-    return { tool: 'calculadora', input: `${numA} ${operator} ${numB}`, result };
-  }
-
-  toolSearch(query, topK = 2) {
-    const relevant = this.retrieve(query, topK);
+    if (!generated.includes('</s>')) generated.push('</s>');
     return {
-      tool: 'buscar',
-      query,
-      results: relevant.map(r => ({
-        topic: r.topic,
-        score: r.score,
-        preview: r.sentences[0]?.slice(0, 120) || ''
-      }))
+      text: generated.join(' ').replace(/\s+<\/s>/, '</s>'),
+      tokens: tokensUsed
     };
-  }
-
-  toolExtract(query, topic = null) {
-    const items = topic ? this.knowledge.filter(k => k.topic === topic) : this.knowledge;
-    const sentences = [];
-    const qTokens = this.tokenize(query);
-    for (const item of items) {
-      for (const sent of item.sentences) {
-        const overlap = qTokens.filter(t => sent.toLowerCase().includes(t)).length;
-        if (overlap > 0) sentences.push({ sentence: sent, topic: item.topic, score: overlap });
-      }
-    }
-    sentences.sort((a, b) => b.score - a.score);
-    return { tool: 'extrair', sentences: sentences.slice(0, 3) };
-  }
-
-  retrieve(query, topK = 3) {
-    const queryTokens = new Set(this.tokenize(query));
-    const scores = [];
-    for (const item of this.knowledge) {
-      let score = 0;
-      const contentTokens = this.tokenize(item.content);
-      for (const token of queryTokens) {
-        if (contentTokens.includes(token)) score += this.neuronWeights.keyword;
-      }
-      if (query.toLowerCase().includes(item.topic)) score += this.neuronWeights.topic;
-      if (score > 0) scores.push({ ...item, score });
-    }
-    return scores.sort((a, b) => b.score - a.score).slice(0, topK);
-  }
-
-  answerFast(query) {
-    const calc = this.detectAndCalculate(query);
-    if (calc) return `Cálculo: ${calc.input} = ${calc.result}`;
-    const relevant = this.retrieve(query, 1);
-    if (!relevant.length) return "Não sei. Sem informação na base.";
-    const best = relevant[0];
-    const sent = best.sentences.find(s => this.tokenize(query).some(t => s.toLowerCase().includes(t))) || best.sentences[0];
-    return `[${best.topic}] ${sent}`;
-  }
-
-  answerNormal(query) {
-    const calc = this.detectAndCalculate(query);
-    if (calc) return `Cálculo: ${calc.input} = ${calc.result}`;
-    const extract = this.toolExtract(query);
-    if (!extract.sentences.length) return "Não encontrei informações relevantes.";
-    let draft = extract.sentences.map(s => s.sentence).join('. ');
-    return this.revise(draft, query);
-  }
-
-  answerThinker(query) {
-    const calc = this.detectAndCalculate(query);
-    const extract = this.toolExtract(query);
-    let draft = '';
-    if (calc) draft += `Resultado do cálculo: ${calc.result}. `;
-    if (extract.sentences.length) {
-      draft += extract.sentences.map(s => s.sentence).join('. ');
-    } else {
-      draft += "Não encontrei informação específica.";
-    }
-    return this.revise(draft, query);
-  }
-
-  detectAndCalculate(query) {
-    const fullMatch = query.match(/(-?\d+\.?\d*(?:\s*[+\-*/^]\s*-?\d+\.?\d*)+)/);
-    if (fullMatch) {
-      try {
-        const expr = fullMatch[1].replace(/\^/g, '**');
-        const clean = expr.replace(/[^0-9+\-*/().\s]/g, '');
-        if (clean && /[\d]/.test(clean)) {
-          const result = Function(`"use strict"; return (${clean})`)();
-          if (typeof result === 'number' && isFinite(result)) {
-            return { tool: 'calculadora', input: fullMatch[1].trim(), result };
-          }
-        }
-      } catch (e) {}
-    }
-    const simple = query.match(/(-?\d+\.?\d*)\s*([+\-*/^])\s*(-?\d+\.?\d*)/);
-    if (simple) return this.toolCalculator(simple[1], simple[2], simple[3]);
-    return null;
-  }
-
-  revise(draft, query) {
-    let revised = draft.replace(/\s+/g, ' ').trim();
-    if (revised.length > 450) revised = revised.slice(0, 450) + '...';
-    return revised;
   }
 
   answer(query) {
-    if (!query?.trim()) return "Pergunta vazia.";
-    switch (this.mode) {
-      case 'fast': return this.answerFast(query);
-      case 'thinker': return this.answerThinker(query);
-      default: return this.answerNormal(query);
-    }
+    return this.generateUntilEnd(query).text;
   }
 
   stats() {
-    return {
-      mode: this.mode,
-      topics: this.knowledge.length,
-      vocabulary: this.vocabulary.size,
-      thinkingRounds: this.thinkingRounds,
-      revisionSteps: this.revisionSteps,
-      tools: ['calculadora', 'buscar', 'extrair']
-    };
+    return { topics: this.knowledge.length, vocabulary: this.vocabulary.size };
   }
 }
