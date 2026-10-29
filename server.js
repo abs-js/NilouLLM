@@ -17,7 +17,7 @@ const PORT = process.env.PORT || 3000;
 const token = process.argv[2] || process.env.SUPABASE_KEY;
 initDb(token);
 
-const nilou = new BasicLanguageModel({ n: 2, temperature: 0.5, maxTokens: 120 });
+const nilou = new BasicLanguageModel({ n: 3, temperature: 0.35, maxTokens: 70, blendN2: true });
 const app = express();
 app.use(express.json());
 app.use((req, res, next) => {
@@ -103,10 +103,10 @@ app.post('/', async (req, res) => {
     if (!checkRateLimit(keyData)) return res.status(429).json({ error: 'Limite excedido' });
     const question = (q || '').toString().trim();
     if (!question) return res.status(400).json({ error: 'q obrigatório' });
-    const maxTok = Math.min(parseInt(c?.maxTokens) || 80, 120);
+    const maxTok = Math.min(parseInt(c?.maxTokens) || 60, 100);
     const result = nilou.generateUntilEnd(question, maxTok);
     recordKeyUsage(keyData, result.tokens);
-    res.json({ r: result.text, t: result.tokens });
+    res.json({ r: result.text, t: result.tokens, topic: result.topic });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 

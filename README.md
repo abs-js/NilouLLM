@@ -1,6 +1,13 @@
 # Nilou 0.0.0
 
-Basic language model from scratch in pure JavaScript.
+Modelo de linguagem básico e **mais pensativo** em JavaScript puro.
+
+## Melhorias recentes
+- n-grams 2 + 3 misturados (mais parâmetros / "neurônios")
+- Seleção inteligente de frase-semente (fase pensativa)
+- Sampling com temperatura
+- Parada antecipada para consumir menos tokens
+- Melhor pontuação de tópicos
 
 ## API
 
@@ -8,9 +15,9 @@ Basic language model from scratch in pure JavaScript.
 
 ```json
 {
-  "m": "Nilou 0.0.0",
-  "q": "your question",
-  "c": { "maxTokens": 80 }
+  "k": "sua_chave",
+  "q": "sua pergunta",
+  "c": { "maxTokens": 60 }
 }
 ```
 
@@ -18,20 +25,21 @@ Basic language model from scratch in pure JavaScript.
 
 ```json
 {
-  "r": "generated text until </s>",
-  "t": 42
+  "r": "texto gerado até </s>",
+  "t": 28,
+  "topic": "general"
 }
 ```
 
-- Always generates by predicting the next word until `</s>` appears.
-- Token ceiling per request.
-- Rate limit: 30 requests per minute.
+- Gera por predição de próxima palavra até `</s>` ou confiança baixa.
+- Limite de tokens por request (padrão mais baixo).
+- Rate limit: 30 requests por minuto.
 
-## Knowledge base format
+## Formato da base de conhecimento
 
-- New lines: `\n`
-- Code blocks: `-code:language\n...\ncode-`
-- End of answer: `</s>`
+- Novas linhas: `\n`
+- Blocos de código: `-code:language\n...\ncode-`
+- Fim da resposta: `</s>`
 
 ## Run
 
@@ -39,4 +47,4 @@ Basic language model from scratch in pure JavaScript.
 node server.js "seu_token"
 ```
 
-Auto-training starts after 5 minutes of inactivity.
+O modelo agora é mais seletivo na escolha do contexto e tende a respostas mais curtas e relevantes.
