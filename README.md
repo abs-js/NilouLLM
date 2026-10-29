@@ -3,7 +3,7 @@
 Modelo de linguagem básico e **mais pensativo** em JavaScript puro.
 
 ## Melhorias recentes
-- n-grams 2 + 3 misturados (mais parâmetros / "neurônios")
+- **Quintgramas (n=5)** por padrão + blend de **quadrigramas (n=4)** com pesos diferentes
 - Seleção inteligente de frase-semente (fase pensativa)
 - Sampling com temperatura
 - Parada antecipada para consumir menos tokens
@@ -27,7 +27,7 @@ Modelo de linguagem básico e **mais pensativo** em JavaScript puro.
 {
   "r": "texto gerado até </s>",
   "t": 28,
-  "topic": "general"
+  "topic": "python"
 }
 ```
 
@@ -40,6 +40,14 @@ Modelo de linguagem básico e **mais pensativo** em JavaScript puro.
 - Novas linhas: `\n`
 - Blocos de código: `-code:language\n...\ncode-`
 - Fim da resposta: `</s>`
+
+## Testes
+
+Edite `tests/test.js` e coloque sua pergunta e token:
+
+```bash
+node tests/test.js
+```
 
 ## Run
 

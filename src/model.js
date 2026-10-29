@@ -1,7 +1,8 @@
 /**
  * Nilou - Modelo mais pensativo
- * Usa n-grams 2 e 3 (mais parâmetros), seleção inteligente de frase-semente,
- * sampling com temperatura e parada mais cedo para consumir menos tokens.
+ * Usa quintgramas (n=5) por padrão + blend de quadrigramas (n=4)
+ * Seleção inteligente de frase-semente, sampling com temperatura
+ * e parada mais cedo para consumir menos tokens.
  */
 
 import fs from 'fs';
@@ -12,15 +13,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export class BasicLanguageModel {
   constructor(options = {}) {
-    this.n = options.n || 3; // trigramas por padrão (mais contexto)
+    this.n = options.n || 5; // quintgramas por padrão
     this.temperature = options.temperature || 0.35;
-    this.maxTokens = options.maxTokens || 60; // um pouco menos por padrão
+    this.maxTokens = options.maxTokens || 60;
     this.paramsDir = options.paramsDir || path.join(__dirname, '../params');
-    this.blendN2 = options.blendN2 !== false; // mistura bigramas (mais "neurônios")
+    this.blendN4 = options.blendN4 !== false; // mistura quadrigramas
 
     this.knowledge = [];
-    this.topicNgrams = new Map(); // n
-    this.topicNgrams2 = new Map(); // n=2 extra
+    this.topicNgrams = new Map(); // n=5
+    this.topicNgrams4 = new Map(); // n=4 extra
     this.loadKnowledge();
   }
 
@@ -35,9 +36,9 @@ export class BasicLanguageModel {
       const sentences = content.split(/[\n.!?]+/).map(s => s.trim()).filter(s => s.length > 4 && !s.includes('</s>'));
       this.knowledge.push({ topic, content, sentences });
       this.topicNgrams.set(topic, this.buildNgrams(content, this.n));
-      if (this.blendN2) this.topicNgrams2.set(topic, this.buildNgrams(content, 2));
+      if (this.blendN4) this.topicNgrams4.set(topic, this.buildNgrams(content, 4));
     }
-    console.log(`Conhecimento carregado: ${this.knowledge.length} tópicos (n=${this.n}${this.blendN2 ? '+2' : ''})`);
+    console.log(`Conhecimento carregado: ${this.knowledge.length} tópicos (n=${this.n}${this.blendN4 ? '+4' : ''})`);
   }
 
   tokenize(text) {
@@ -65,7 +66,6 @@ export class BasicLanguageModel {
       if (contentTokens.has(t)) score += 2;
       if (topicTokens.has(t)) score += 4;
     }
-    // bônus por tamanho moderado (evita tópicos gigantes genéricos)
     score += Math.min(item.sentences.length, 8) * 0.3;
     return score;
   }
@@ -85,7 +85,6 @@ export class BasicLanguageModel {
     return best || this.knowledge[0];
   }
 
-  // Fase "pensativa": escolhe a frase mais relevante como semente
   findBestSentence(topicItem, query) {
     const qTokens = new Set(this.tokenize(query));
     let best = topicItem.sentences[0] || '';
@@ -95,7 +94,6 @@ export class BasicLanguageModel {
       const sTokens = new Set(this.tokenize(sent));
       let score = 0;
       for (const t of qTokens) if (sTokens.has(t)) score += 1;
-      // preferir frases nem muito curtas nem muito longas
       const len = this.tokenize(sent).length;
       if (len >= 4 && len <= 25) score += 1;
       if (score > bestScore) {
@@ -110,7 +108,6 @@ export class BasicLanguageModel {
     if (!candidates || candidates.size === 0) return '';
     const entries = Array.from(candidates.entries());
     if (temperature <= 0.05) {
-      // greedy
       return entries.reduce((a, b) => (a[1] > b[1] ? a : b))[0];
     }
 
@@ -127,22 +124,22 @@ export class BasicLanguageModel {
 
   nextToken(topic, contextTokens) {
     const ngrams = this.topicNgrams.get(topic);
-    const ngrams2 = this.topicNgrams2.get(topic);
-    const ctx3 = contextTokens.slice(-(this.n - 1)).join(' ');
-    const ctx2 = contextTokens.slice(-1).join(' ');
+    const ngrams4 = this.topicNgrams4.get(topic);
+    const ctx5 = contextTokens.slice(-(this.n - 1)).join(' ');
+    const ctx4 = contextTokens.slice(-3).join(' '); // contexto de 3 para n=4 (n-1=3)
 
     let candidates = new Map();
 
-    // principal (n=3)
-    if (ngrams?.has(ctx3)) {
-      for (const [w, c] of ngrams.get(ctx3)) {
-        candidates.set(w, (candidates.get(w) || 0) + c * 1.4);
+    // principal (n=5)
+    if (ngrams?.has(ctx5)) {
+      for (const [w, c] of ngrams.get(ctx5)) {
+        candidates.set(w, (candidates.get(w) || 0) + c * 1.5);
       }
     }
-    // blend bigramas (mais neurônios / fallback)
-    if (this.blendN2 && ngrams2?.has(ctx2)) {
-      for (const [w, c] of ngrams2.get(ctx2)) {
-        candidates.set(w, (candidates.get(w) || 0) + c * 0.6);
+    // blend quadrigramas
+    if (this.blendN4 && ngrams4?.has(ctx4)) {
+      for (const [w, c] of ngrams4.get(ctx4)) {
+        candidates.set(w, (candidates.get(w) || 0) + c * 0.7);
       }
     }
 
@@ -153,7 +150,6 @@ export class BasicLanguageModel {
     const best = this.findBestTopic(prompt);
     if (!best) return { text: 'Não sei. </s>', tokens: 2, topic: null };
 
-    // pensamento: escolhe a melhor frase-semente
     const seed = this.findBestSentence(best, prompt);
     let current = seed;
     const generated = [seed];
@@ -170,7 +166,6 @@ export class BasicLanguageModel {
         break;
       }
 
-      // parada antecipada se confiança baixa por muito tempo (menos tokens)
       const ngrams = this.topicNgrams.get(best.topic);
       const ctx = tokens.slice(-(this.n - 1)).join(' ');
       const cands = ngrams?.get(ctx);
@@ -202,7 +197,7 @@ export class BasicLanguageModel {
       topics: this.knowledge.length,
       topicsList: this.knowledge.map(k => k.topic),
       n: this.n,
-      blendN2: this.blendN2
+      blendN4: this.blendN4
     };
   }
 }
